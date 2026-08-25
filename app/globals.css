@@ -7,3 +7,53 @@
 .site-footer{display:flex;justify-content:space-between;align-items:center;padding:22px 0 30px;border-top:1px solid var(--line);color:#776969;font-size:10px;letter-spacing:.12em}.site-footer a{color:#aa9696;text-decoration:none}.site-footer a:hover{color:var(--ink)}
 .legal-shell{width:min(900px,calc(100% - 32px));margin:0 auto;padding-bottom:60px}.legal-header{height:78px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.legal-header a:last-child{color:#aa9696;text-decoration:none;font-size:12px}.legal-card{margin-top:58px;padding:clamp(26px,5vw,58px);background:rgba(18,18,18,.9);border:1px solid var(--line);border-radius:22px}.legal-card h1{max-width:690px;margin:12px 0 8px;font:800 clamp(40px,7vw,70px)/1 Manrope;letter-spacing:-.055em}.legal-updated{margin:0 0 42px;color:#806f6f;font-size:12px}.legal-card section{padding:24px 0;border-top:1px solid var(--line)}.legal-card h2{margin:0 0 10px;font:700 19px Manrope}.legal-card section p{margin:0;color:#b9a8a8;line-height:1.75}.legal-card section a{color:#ff7777}
 @media(max-width:760px){.demo-visual{aspect-ratio:16/9;min-height:0}.timer-sheet{grid-template-columns:auto 1fr auto}.timer-sheet .skip-rest{grid-column:3;grid-row:1}.rest-options button{padding:6px 10px}}
+@media(max-width:760px){
+  .site-shell.view-workout{height:100dvh;min-height:0;display:grid;grid-template-rows:54px minmax(0,1fr);overflow:hidden;padding-bottom:max(6px,env(safe-area-inset-bottom))}
+  .view-workout .app-header{height:54px;position:relative;top:auto}
+  .view-workout .mark{width:30px;height:30px;border-radius:9px 2px 9px 2px;font-size:17px}
+  .view-workout .wordmark{gap:9px;font-size:13px}
+  .view-workout .sheet-grid{width:30px;height:30px}
+  .view-workout>.notice{position:fixed;z-index:30;top:58px;left:15px;right:15px;margin:0;box-shadow:0 12px 40px #000}
+  .view-workout .workout-view{min-height:0;padding:9px 0 0;display:grid;grid-template-rows:auto auto auto minmax(0,1fr)}
+  .view-workout .workout-titlebar{min-height:0;margin-bottom:9px;align-items:start}
+  .view-workout .step-label{font-size:9px}
+  .view-workout .workout-titlebar h2{max-width:285px;margin:5px 0 2px;font-size:24px;line-height:.98}
+  .view-workout .workout-titlebar p,.view-workout .exit-button{font-size:10px}
+  .view-workout .slide-card{min-height:0;align-self:start;grid-template-rows:auto auto;border-radius:15px}
+  .view-workout .demo-visual{min-height:0;aspect-ratio:16/9}
+  .view-workout .cue{padding:8px 14px 9px}
+  .view-workout .cue span{font-size:8px}
+  .view-workout .cue p{margin-top:3px;font-size:10px;line-height:1.35}
+  .view-workout .entry-panel{min-height:0;padding:10px 14px 9px}
+  .view-workout .set-line{margin-bottom:6px}
+  .view-workout .set-line>span,.view-workout .metric-block label{font-size:8px}
+  .view-workout .set-line div{gap:6px}
+  .view-workout .set-line i{width:26px;height:26px;font-size:9px}
+  .view-workout .metric-block{padding:7px 0}
+  .view-workout .stepper{grid-template-columns:48px 1fr 48px;margin-top:6px}
+  .view-workout .stepper button{height:44px;border-radius:10px}
+  .view-workout .stepper strong{font-size:36px}
+  .view-workout .bodyweight-value{margin-top:8px;font-size:23px}
+  .view-workout .log-set-button{position:static;min-height:44px;margin-top:3px;padding:11px 14px}
+  .view-workout .sync-line{margin:6px 0 0;line-height:1}
+  .view-workout .exercise-rail{display:flex;gap:4px;overflow:visible;padding:6px 0 0}
+  .view-workout .exercise-rail button{flex:1 1 0;min-width:0;padding:7px 2px;text-align:center}
+  .view-workout .exercise-rail button span{margin:0}
+  .view-workout .exercise-rail button b{display:none}
+  .view-workout .site-footer{display:none}
+}
+@media(max-width:760px) and (max-height:760px){
+  .view-workout .app-header{height:50px}
+  .site-shell.view-workout{grid-template-rows:50px minmax(0,1fr)}
+  .view-workout .workout-view{padding-top:6px}
+  .view-workout .workout-titlebar{margin-bottom:6px}
+  .view-workout .workout-titlebar h2{font-size:21px}
+  .view-workout .demo-visual{height:clamp(122px,22dvh,154px);aspect-ratio:auto}
+  .view-workout .cue{padding-block:6px}
+  .view-workout .cue p{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .view-workout .entry-panel{padding-block:7px}
+  .view-workout .metric-block{padding:5px 0}
+  .view-workout .stepper{margin-top:4px}
+  .view-workout .stepper strong{font-size:32px}
+  .view-workout .sync-line{display:none}
+}
