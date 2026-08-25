@@ -8,6 +8,13 @@
       "when": 1787616599714,
       "tag": "0000_lucky_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787619711896,
+      "tag": "0001_huge_jack_power",
+      "breakpoints": true
     }
   ]
 }
