@@ -7,57 +7,61 @@
 .site-footer{display:flex;justify-content:space-between;align-items:center;padding:22px 0 30px;border-top:1px solid var(--line);color:#776969;font-size:10px;letter-spacing:.12em}.site-footer a{color:#aa9696;text-decoration:none}.site-footer a:hover{color:var(--ink)}
 .legal-shell{width:min(900px,calc(100% - 32px));margin:0 auto;padding-bottom:60px}.legal-header{height:78px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.legal-header a:last-child{color:#aa9696;text-decoration:none;font-size:12px}.legal-card{margin-top:58px;padding:clamp(26px,5vw,58px);background:rgba(18,18,18,.9);border:1px solid var(--line);border-radius:22px}.legal-card h1{max-width:690px;margin:12px 0 8px;font:800 clamp(40px,7vw,70px)/1 Manrope;letter-spacing:-.055em}.legal-updated{margin:0 0 42px;color:#806f6f;font-size:12px}.legal-card section{padding:24px 0;border-top:1px solid var(--line)}.legal-card h2{margin:0 0 10px;font:700 19px Manrope}.legal-card section p{margin:0;color:#b9a8a8;line-height:1.75}.legal-card section a{color:#ff7777}
 @media(max-width:760px){.demo-visual{aspect-ratio:16/9;min-height:0}.timer-sheet{grid-template-columns:auto 1fr auto}.timer-sheet .skip-rest{grid-column:3;grid-row:1}.rest-options button{padding:6px 10px}}
+.day-card>*{position:relative;z-index:1}.day-card:after{z-index:0;pointer-events:none}
 @media(max-width:760px){
-  .site-shell.view-home,.site-shell.view-workout{height:100dvh;min-height:0;display:grid;grid-template-rows:54px minmax(0,1fr);overflow:hidden;padding-bottom:max(78px,env(safe-area-inset-bottom))}
+  .site-shell.view-home,.site-shell.view-workout{height:100dvh;min-height:0;display:grid;grid-template-rows:54px minmax(0,1fr);overflow:hidden;padding-bottom:max(66px,env(safe-area-inset-bottom))}
   .view-home .app-header,.view-workout .app-header{height:54px;position:relative;top:auto}
   .view-home .mark,.view-workout .mark{width:30px;height:30px;border-radius:9px 2px 9px 2px;font-size:17px}
-  .view-home .wordmark,.view-workout .wordmark{gap:9px;font-size:13px}
+  .view-home .wordmark,.view-workout .wordmark{gap:9px;font-size:14px}
   .view-home .sheet-grid,.view-workout .sheet-grid{width:30px;height:30px}
   .view-home .home-view{min-height:0;padding:12px 0 5px;display:flex;flex-direction:column}
   .view-home .hero-copy-block{flex:0 0 auto;margin-bottom:10px}
-  .view-home .kicker{font-size:9px}
-  .view-home .hero-copy-block h1{margin-top:6px;font-size:38px;line-height:.92}
-  .view-home .intro{margin-top:10px;font-size:11px;line-height:1.35}
+  .view-home .kicker{font-size:10px}
+  .view-home .hero-copy-block h1{margin-top:6px;font-size:42px;line-height:.92}
+  .view-home .intro{margin-top:10px;font-size:12px;line-height:1.38}
   .view-home .google-status{flex:0 0 auto;margin:0 0 8px;padding:6px 9px;font-size:9px}
   .view-home .notice{flex:0 0 auto;margin:0 0 8px;padding:8px 10px;font-size:10px}
   .view-home .day-grid{flex:1 1 auto;min-height:0;grid-template-rows:repeat(2,minmax(0,1fr));gap:7px}
-  .view-home .day-card{height:100%;min-height:0;padding:11px;border-radius:14px}
-  .view-home .day-card-number{margin-top:7px;font-size:30px}
-  .view-home .day-card-type{margin-top:6px;font-size:14px}
-  .view-home .day-card-focus{margin-top:3px;font-size:9px}
-  .view-home .day-card-meta small{font-size:8px}
+  .view-home .day-card{height:100%;min-height:0;padding:12px;border-radius:14px}
+  .view-home .day-card-top b{font-size:10px}
+  .view-home .day-card-number{margin-top:7px;font-size:34px}
+  .view-home .day-card-type{margin-top:6px;font-size:16px}
+  .view-home .day-card-focus{margin-top:3px;font-size:10px}
+  .view-home .day-card-meta small{font-size:9px}
   .view-home .start-dock{position:static;flex:0 0 auto;margin-top:7px;padding:8px 8px 8px 12px}
-  .view-home .start-dock>div b{font-size:11px}
-  .view-home .primary-action{min-width:142px;padding:11px 12px;font-size:11px}
-  .view-home .source-note{flex:0 0 auto;margin-top:4px;font-size:8px;line-height:1.2}
+  .view-home .start-dock>div b{font-size:12px}
+  .view-home .primary-action{min-width:148px;padding:12px 13px;font-size:12px}
+  .view-home .source-note{flex:0 0 auto;margin-top:4px;font-size:8.5px;line-height:1.2}
   .view-home .site-footer,.view-workout .site-footer{display:none}
   .view-workout>.notice{position:fixed;z-index:30;top:58px;left:15px;right:15px;margin:0;box-shadow:0 12px 40px #000}
   .view-workout .workout-view{min-height:0;padding:9px 0 5px;display:grid;grid-template-rows:auto minmax(0,1fr) auto}
   .view-workout .workout-titlebar{min-height:0;margin-bottom:9px;align-items:start}
-  .view-workout .step-label{font-size:9px}
-  .view-workout .workout-titlebar h2{max-width:285px;margin:5px 0 2px;font-size:24px;line-height:.98}
-  .view-workout .workout-titlebar p,.view-workout .exit-button{font-size:10px}
+  .view-workout .step-label{font-size:10px}
+  .view-workout .workout-titlebar h2{max-width:292px;margin:5px 0 2px;font-size:27px;line-height:.98}
+  .view-workout .workout-titlebar p,.view-workout .exit-button{font-size:11px}
   .view-workout .slide-card{height:100%;min-height:0;align-self:stretch;grid-template-rows:minmax(0,1fr) auto;border-radius:15px}
   .view-workout .demo-panel{min-height:0;grid-template-rows:minmax(0,1fr) auto}
   .view-workout .demo-visual{min-height:145px;aspect-ratio:auto}
   .view-workout .cue{padding:8px 14px 9px}
-  .view-workout .cue span{font-size:8px}
-  .view-workout .cue p{margin-top:3px;font-size:10px;line-height:1.35}
-  .view-workout .entry-panel{min-height:0;padding:10px 14px 9px}
+  .view-workout .cue span{font-size:9px}
+  .view-workout .cue p{margin-top:4px;font-size:11.5px;line-height:1.35}
+  .view-workout .entry-panel{min-height:0;padding:11px 14px 10px}
   .view-workout .set-line{margin-bottom:6px}
-  .view-workout .set-line>span,.view-workout .metric-block label{font-size:8px}
+  .view-workout .set-line>span,.view-workout .metric-block label{font-size:9.5px}
   .view-workout .set-line div{gap:6px}
-  .view-workout .set-line i{width:26px;height:26px;font-size:9px}
-  .view-workout .metric-block{padding:7px 0}
-  .view-workout .stepper{grid-template-columns:48px 1fr 48px;margin-top:6px}
-  .view-workout .stepper button{height:44px;border-radius:10px}
-  .view-workout .stepper strong{font-size:36px}
+  .view-workout .set-line i{width:30px;height:30px;font-size:10px}
+  .view-workout .metric-block{padding:8px 0}
+  .view-workout .metric-block label small{font-size:9.5px}
+  .view-workout .stepper{grid-template-columns:52px 1fr 52px;margin-top:7px}
+  .view-workout .stepper button{height:48px;border-radius:10px}
+  .view-workout .stepper strong{font-size:42px}
   .view-workout .bodyweight-value{margin-top:8px;font-size:23px}
-  .view-workout .log-set-button{position:static;min-height:44px;margin-top:3px;padding:11px 14px}
-  .view-workout .sync-line{margin:6px 0 0;line-height:1}
+  .view-workout .log-set-button{position:static;min-height:48px;margin-top:3px;padding:12px 14px}
+  .view-workout .log-set-button span{font-size:14px}.view-workout .log-set-button b{font-size:10px}
+  .view-workout .sync-line{margin:6px 0 0;font-size:10px;line-height:1}
   .view-workout .exercise-rail{display:flex;gap:4px;overflow:visible;padding:6px 0 0}
   .view-workout .exercise-rail button{flex:1 1 0;min-width:0;padding:7px 2px;text-align:center}
-  .view-workout .exercise-rail button span{margin:0}
+  .view-workout .exercise-rail button span{margin:0;font-size:10px}
   .view-workout .exercise-rail button b{display:none}
 }
 @media(max-width:760px) and (max-height:760px){
