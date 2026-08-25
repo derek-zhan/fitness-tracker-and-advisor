@@ -7,7 +7,9 @@ export async function GET(request: Request) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Please sign in to the workout site first" }, { status: 401 });
   const url = new URL(request.url);
-  const workoutDay = Math.min(4, Math.max(1, Number(url.searchParams.get("day")) || 1));
+  const program = url.searchParams.get("program") === "glute6" ? "glute6" : "strength4";
+  const day = Math.min(program === "glute6" ? 6 : 4, Math.max(1, Number(url.searchParams.get("day")) || 1));
+  const workoutDay = program === "glute6" ? 100 + day : day;
   const state = randomOAuthValue();
   const codeVerifier = randomOAuthValue(48);
   await getDb().insert(googleOauthStates).values({ state, userId: user.userId, codeVerifier, workoutDay, expiresAt: Date.now() + 10 * 60 * 1000 });

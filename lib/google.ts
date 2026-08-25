@@ -112,3 +112,16 @@ export async function writeWorkoutSet(accessToken: string, spreadsheetId: string
     { range: `${quoted}!F${row}:G${row}`, values: [[reps, load]] },
   ] }) });
 }
+
+export async function ensureWorkoutLogSheet(accessToken: string, spreadsheetId: string) {
+  const metadata = await googleJson(`${sheetApi(spreadsheetId)}?fields=sheets.properties`, accessToken) as { sheets?: Array<{ properties?: { title?: string } }> };
+  if ((metadata.sheets || []).some((sheet) => sheet.properties?.title === "Workout Log")) return "Workout Log";
+  await googleJson(`${sheetApi(spreadsheetId, ":batchUpdate")}`, accessToken, { method:"POST", body:JSON.stringify({ requests:[{ addSheet:{ properties:{ title:"Workout Log", gridProperties:{ frozenRowCount:1, hideGridlines:true } } } }] }) });
+  await googleJson(`${sheetApi(spreadsheetId, "/values:batchUpdate")}`, accessToken, { method:"POST", body:JSON.stringify({ valueInputOption:"USER_ENTERED", data:[{ range:"'Workout Log'!A1:I1", values:[["Date","Program","Day","Type","Exercise","Set","Reps / Minutes","Load (lb)","Notes"]] }] }) });
+  return "Workout Log";
+}
+
+export async function appendWorkoutSet(accessToken: string, spreadsheetId: string, values: Array<string|number>) {
+  const range=encodeURIComponent("'Workout Log'!A:I");
+  await googleJson(`${sheetApi(spreadsheetId, `/values/${range}:append`)}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, accessToken, { method:"POST", body:JSON.stringify({ values:[values] }) });
+}
