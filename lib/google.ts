@@ -82,6 +82,38 @@ function sheetApi(spreadsheetId: string, suffix = "") {
   return `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}${suffix}`;
 }
 
+export type PreviousWorkoutSet = { exerciseIndex: number; setNumber: number; reps: number; load: number };
+
+export async function readPreviousWorkoutSets(accessToken: string, spreadsheetId: string, sheetTab: string, exerciseSets: number[]) {
+  if (!exerciseSets.length) return [];
+  const lastRow = 5 + (exerciseSets.length - 1) * 6 + Math.max(0, exerciseSets.at(-1)! - 1);
+  const quoted = `'${sheetTab.replace(/'/g, "''")}'`;
+  const range = encodeURIComponent(`${quoted}!F5:G${lastRow}`);
+  const data = await googleJson(`${sheetApi(spreadsheetId, `/values/${range}`)}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`, accessToken) as { values?: unknown[][] };
+  const rows = data.values || [];
+  const previousSets: PreviousWorkoutSet[] = [];
+  exerciseSets.forEach((setCount, exerciseIndex) => {
+    const startRowOffset = exerciseIndex * 6;
+    for (let setNumber = 1; setNumber <= setCount; setNumber++) {
+      const [repsValue, loadValue] = rows[startRowOffset + setNumber - 1] || [];
+      const reps = Number(repsValue);
+      const load = Number(loadValue);
+      const hasReps = repsValue !== undefined && repsValue !== null && repsValue !== "";
+      const hasLoad = loadValue !== undefined && loadValue !== null && loadValue !== "";
+      if (hasReps && hasLoad && Number.isFinite(reps) && Number.isFinite(load)) {
+        previousSets.push({ exerciseIndex, setNumber, reps, load });
+      }
+    }
+  });
+  return previousSets;
+}
+
+export async function readPreviousWeekWorkoutSets(accessToken: string, spreadsheetId: string, currentSheetTab: string, exerciseSets: number[]) {
+  const match = /^Week\s+(\d+)$/i.exec(currentSheetTab);
+  if (!match || Number(match[1]) <= 1) return [];
+  return readPreviousWorkoutSets(accessToken, spreadsheetId, `Week ${Number(match[1]) - 1}`, exerciseSets);
+}
+
 export async function createWorkoutWeek(accessToken: string, spreadsheetId: string, date: Date, exerciseSets: number[]) {
   const metadata = await googleJson(`${sheetApi(spreadsheetId)}?fields=sheets.properties`, accessToken) as { sheets?: Array<{ properties?: { sheetId?: number; title?: string; index?: number } }> };
   const weeks = (metadata.sheets || []).map((sheet) => {
@@ -91,6 +123,7 @@ export async function createWorkoutWeek(accessToken: string, spreadsheetId: stri
   }).filter((item): item is { number: number; id: number; index: number } => Boolean(item)).sort((a, b) => b.number - a.number);
   if (!weeks.length) throw new Error("No Week tab was found in this workout sheet");
   const latest = weeks[0];
+  const previousSets = await readPreviousWorkoutSets(accessToken, spreadsheetId, `Week ${latest.number}`, exerciseSets);
   const title = `Week ${latest.number + 1}`;
   await googleJson(`${sheetApi(spreadsheetId, ":batchUpdate")}`, accessToken, { method: "POST", body: JSON.stringify({ requests: [{ duplicateSheet: { sourceSheetId: latest.id, insertSheetIndex: latest.index + 1, newSheetName: title } }] }) });
   const quoted = `'${title.replace(/'/g, "''")}'`;
@@ -102,7 +135,7 @@ export async function createWorkoutWeek(accessToken: string, spreadsheetId: stri
   ] }) });
   const ranges = exerciseSets.map((sets, index) => { const row = 5 + index * 6; return `${quoted}!F${row}:H${row + sets - 1}`; });
   await googleJson(`${sheetApi(spreadsheetId, "/values:batchClear")}`, accessToken, { method: "POST", body: JSON.stringify({ ranges }) });
-  return title;
+  return { sheetTab:title, previousSets };
 }
 
 export async function writeWorkoutSet(accessToken: string, spreadsheetId: string, sheetTab: string, exerciseIndex: number, setNumber: number, reps: number, load: number) {
