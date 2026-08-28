@@ -84,6 +84,11 @@ function sheetApi(spreadsheetId: string, suffix = "") {
 
 export type PreviousWorkoutSet = { exerciseIndex: number; setNumber: number; reps: number; load: number };
 
+export async function sheetTabExists(accessToken: string, spreadsheetId: string, sheetTab: string) {
+  const metadata = await googleJson(`${sheetApi(spreadsheetId)}?fields=sheets.properties.title`, accessToken) as { sheets?: Array<{ properties?: { title?: string } }> };
+  return (metadata.sheets || []).some((sheet) => sheet.properties?.title === sheetTab);
+}
+
 export async function readPreviousWorkoutSets(accessToken: string, spreadsheetId: string, sheetTab: string, exerciseSets: number[]) {
   if (!exerciseSets.length) return [];
   const lastRow = 5 + (exerciseSets.length - 1) * 6 + Math.max(0, exerciseSets.at(-1)! - 1);
