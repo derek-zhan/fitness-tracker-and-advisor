@@ -101,3 +101,4 @@
   .view-workout .stepper strong{font-size:32px}
   .view-workout .sync-line{display:none}
 }
+.set-line i.done{color:var(--acid);border-color:#8d3030;background:#281313;font-weight:800}
