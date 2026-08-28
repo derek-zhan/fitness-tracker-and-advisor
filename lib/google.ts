@@ -111,7 +111,15 @@ export async function readPreviousWorkoutSets(accessToken: string, spreadsheetId
 export async function readPreviousWeekWorkoutSets(accessToken: string, spreadsheetId: string, currentSheetTab: string, exerciseSets: number[]) {
   const match = /^Week\s+(\d+)$/i.exec(currentSheetTab);
   if (!match || Number(match[1]) <= 1) return [];
-  return readPreviousWorkoutSets(accessToken, spreadsheetId, `Week ${Number(match[1]) - 1}`, exerciseSets);
+  const currentWeek = Number(match[1]);
+  const metadata = await googleJson(`${sheetApi(spreadsheetId)}?fields=sheets.properties.title`, accessToken) as { sheets?: Array<{ properties?: { title?: string } }> };
+  const previousWeek = (metadata.sheets || []).map((sheet) => {
+    const title = sheet.properties?.title || "";
+    const weekMatch = /^Week\s+(\d+)$/i.exec(title);
+    return weekMatch ? { number:Number(weekMatch[1]), title } : null;
+  }).filter((week): week is { number:number; title:string } => week !== null && week.number < currentWeek).sort((a,b) => b.number - a.number)[0];
+  if (!previousWeek) return [];
+  return readPreviousWorkoutSets(accessToken, spreadsheetId, previousWeek.title, exerciseSets);
 }
 
 export async function createWorkoutWeek(accessToken: string, spreadsheetId: string, date: Date, exerciseSets: number[]) {

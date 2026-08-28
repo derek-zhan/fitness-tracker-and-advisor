@@ -32,7 +32,9 @@ export async function POST(request: Request) {
       if (!payload.day || !payload.sheetId || !payload.date) return Response.json({ error:"Missing workout details" }, { status:400 });
       const accessToken = await accessTokenForUser(user.userId);
       if (!accessToken) return Response.json({ error:"Connect Google Drive before starting", code:"google_auth_required" }, { status:401 });
-      const [activeSession] = await db.select().from(workoutSessions).where(and(eq(workoutSessions.userId,user.userId),eq(workoutSessions.status,"active"))).orderBy(desc(workoutSessions.createdAt)).limit(1);
+      const isGlute = payload.program === "glute6";
+      const requestedWorkoutDay = isGlute ? 100 + payload.day : payload.day;
+      const [activeSession] = await db.select().from(workoutSessions).where(and(eq(workoutSessions.userId,user.userId),eq(workoutSessions.status,"active"),eq(workoutSessions.workoutDay,requestedWorkoutDay),eq(workoutSessions.sourceSheetId,payload.sheetId))).orderBy(desc(workoutSessions.createdAt)).limit(1);
       if (activeSession) {
         const savedSets = await db.select({ exercise:workoutSets.exercise, setNumber:workoutSets.setNumber, reps:workoutSets.reps, load:workoutSets.load }).from(workoutSets).where(eq(workoutSets.sessionId,activeSession.id)).orderBy(workoutSets.id);
         const resumedDay = activeSession.workoutDay > 100 ? activeSession.workoutDay - 100 : activeSession.workoutDay;
@@ -42,7 +44,6 @@ export async function POST(request: Request) {
           : [];
         return Response.json({ sessionId:activeSession.id, workoutDay:activeSession.workoutDay, workoutDate:activeSession.workoutDate, sets:savedSets, previousSets, resumed:true });
       }
-      const isGlute = payload.program === "glute6";
       const exerciseSets: Record<number, number[]> = { 1:[4,4,3,4,3,3,3], 2:[4,4,3,4,3], 3:[4,4,4,4,4,3,3], 4:[4,3,4,3,3] };
       const workoutWeek = isGlute ? null : await createWorkoutWeek(accessToken, payload.sheetId, new Date(payload.date), exerciseSets[payload.day] || []);
       const sheetTab = isGlute ? await ensureWorkoutLogSheet(accessToken, payload.sheetId) : workoutWeek!.sheetTab;
