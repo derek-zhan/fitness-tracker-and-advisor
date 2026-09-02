@@ -102,3 +102,5 @@
   .view-workout .sync-line{display:none}
 }
 .set-line i.done{color:var(--acid);border-color:#8d3030;background:#281313;font-weight:800}
+.set-line button{display:grid;place-items:center;width:27px;height:27px;padding:0;border:1px solid #39443c;border-radius:50%;color:#758078;background:transparent;font-size:10px}.set-line button.active{color:#11180f;background:var(--acid);border-color:var(--acid);font-weight:800}.set-line button.done{color:var(--acid);border-color:#8d3030;background:#281313;font-weight:800}.set-line button.done.active{color:#11180f;background:var(--acid);border-color:var(--acid)}
+@media(max-width:760px){.view-workout .set-line button{width:30px;height:30px;font-size:10px}}

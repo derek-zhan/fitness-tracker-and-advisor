@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { workoutSessions, workoutSets } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
-import { accessTokenForUser, appendWorkoutSet, createWorkoutWeek, ensureWorkoutLogSheet, readPreviousWeekWorkoutSets, sheetTabExists, writeWorkoutSet } from "../../../lib/google";
+import { accessTokenForUser, createWorkoutWeek, ensureWorkoutLogSheet, readPreviousWeekWorkoutSets, sheetTabExists, upsertWorkoutSetLog, writeWorkoutSet } from "../../../lib/google";
 
 type Payload = {
   action?: "start" | "set" | "finish";
@@ -71,11 +71,14 @@ export async function POST(request: Request) {
         await db.update(workoutSessions).set({ sheetTab }).where(eq(workoutSessions.id,session.id));
       }
       if (sheetTab === "Workout Log") {
-        await appendWorkoutSet(accessToken, session.sourceSheetId, [(session.workoutDate||new Date().toISOString()).slice(0,10),"Glute 6-Day",payload.dayLabel||`Day ${payload.day}`,payload.workoutType||"",payload.exercise,payload.setNumber,payload.reps??0,payload.load??0,""]);
+        await upsertWorkoutSetLog(accessToken, session.sourceSheetId, [(session.workoutDate||new Date().toISOString()).slice(0,10),"Glute 6-Day",payload.dayLabel||`Day ${payload.day}`,payload.workoutType||"",payload.exercise,payload.setNumber,payload.reps??0,payload.load??0,""]);
       } else {
         await writeWorkoutSet(accessToken, session.sourceSheetId, sheetTab, payload.exerciseIndex, payload.setNumber, payload.reps ?? 0, payload.load ?? 0);
       }
-      await db.insert(workoutSets).values({ sessionId:payload.sessionId, workoutDay:session.workoutDay, exercise:payload.exercise, setNumber:payload.setNumber, reps:payload.reps ?? 0, load:payload.load ?? 0 });
+      const setMatch=and(eq(workoutSets.sessionId,payload.sessionId),eq(workoutSets.exercise,payload.exercise),eq(workoutSets.setNumber,payload.setNumber));
+      const [existingSet]=await db.select({id:workoutSets.id}).from(workoutSets).where(setMatch).limit(1);
+      if (existingSet) await db.update(workoutSets).set({reps:payload.reps??0,load:payload.load??0}).where(setMatch);
+      else await db.insert(workoutSets).values({ sessionId:payload.sessionId, workoutDay:session.workoutDay, exercise:payload.exercise, setNumber:payload.setNumber, reps:payload.reps ?? 0, load:payload.load ?? 0 });
       return Response.json({ saved:true });
     }
     if (payload.action === "finish") {
