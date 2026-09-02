@@ -171,3 +171,23 @@ export async function appendWorkoutSet(accessToken: string, spreadsheetId: strin
   const range=encodeURIComponent("'Workout Log'!A:I");
   await googleJson(`${sheetApi(spreadsheetId, `/values/${range}:append`)}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`, accessToken, { method:"POST", body:JSON.stringify({ values:[values] }) });
 }
+
+function sheetDateKey(value:unknown) {
+  if (typeof value === "number") return new Date(Date.UTC(1899,11,30)+value*86400000).toISOString().slice(0,10);
+  const text=String(value??"");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const parsed=Date.parse(text);
+  return Number.isNaN(parsed)?text:new Date(parsed).toISOString().slice(0,10);
+}
+
+export async function upsertWorkoutSetLog(accessToken: string, spreadsheetId: string, values: Array<string|number>) {
+  const lookupRange=encodeURIComponent("'Workout Log'!A2:H");
+  const data=await googleJson(`${sheetApi(spreadsheetId, `/values/${lookupRange}`)}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`, accessToken) as { values?: unknown[][] };
+  const matchingRows=(data.values||[]).map((row,index)=>({row,index:index+2})).filter(({row})=>sheetDateKey(row[0])===sheetDateKey(values[0])&&String(row[1]??"")===String(values[1]??"")&&String(row[2]??"")===String(values[2]??"")&&String(row[4]??"")===String(values[4]??"")&&Number(row[5])===Number(values[5]));
+  if (!matchingRows.length) {
+    await appendWorkoutSet(accessToken,spreadsheetId,values);
+    return;
+  }
+  const ranges=matchingRows.map(({index})=>({range:`'Workout Log'!A${index}:I${index}`,values:[values]}));
+  await googleJson(`${sheetApi(spreadsheetId, "/values:batchUpdate")}`, accessToken, { method:"POST", body:JSON.stringify({ valueInputOption:"USER_ENTERED", data:ranges }) });
+}
