@@ -65,9 +65,12 @@ Forge expects these runtime values for its Google connection:
 GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
 GOOGLE_TOKEN_ENCRYPTION_KEY
+GOOGLE_PICKER_API_KEY
 ```
 
 The encryption key must be a base64-encoded AES key. The Google OAuth client also needs the app's `/api/google/callback` URL registered as an authorized redirect URI.
+
+The import popup uses Google Picker with per-file access. Enable the Google Picker API in the same Google Cloud project, create a browser API key restricted to the Picker API and Forge's web origins, and expose it as `GOOGLE_PICKER_API_KEY`. Forge derives the Google Cloud project number from the OAuth client ID; `GOOGLE_CLOUD_PROJECT_NUMBER` can be set explicitly when needed.
 
 ## Useful commands
 
