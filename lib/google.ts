@@ -52,6 +52,14 @@ export async function pkceChallenge(verifier: string) {
 
 export function googleClientId() { return required("GOOGLE_CLIENT_ID"); }
 export function googleClientSecret() { return required("GOOGLE_CLIENT_SECRET"); }
+export function googlePickerConfig() {
+  const clientId = googleClientId();
+  return {
+    clientId,
+    apiKey: required("GOOGLE_PICKER_API_KEY"),
+    appId: workerEnv.GOOGLE_CLOUD_PROJECT_NUMBER || clientId.match(/^(\d+)-/)?.[1] || required("GOOGLE_CLOUD_PROJECT_NUMBER"),
+  };
+}
 
 export async function accessTokenForUser(userId: string) {
   const db = getDb();
