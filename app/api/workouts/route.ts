@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     if (payload.action === "start") {
       if (!payload.day || !payload.sheetId || !payload.date) return Response.json({ error:"Missing workout details" }, { status:400 });
       const accessToken = await accessTokenForUser(user.userId);
-      if (!accessToken) return Response.json({ error:"Connect Google Drive before starting", code:"google_auth_required" }, { status:401 });
+      if (!accessToken) return Response.json({ error:"Connect Google Sheets before starting", code:"google_auth_required" }, { status:401 });
       const isGlute = payload.program === "glute6";
       const requestedWorkoutDay = isGlute ? 100 + payload.day : payload.day;
       const exerciseSets: Record<number, number[]> = { 1:[4,4,3,4,3,3,3], 2:[4,4,3,4,3], 3:[4,4,4,4,4,3,3], 4:[4,3,4,3,3] };
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       const [session] = await db.select().from(workoutSessions).where(eq(workoutSessions.id,payload.sessionId)).limit(1);
       if (!session || (session.userId && session.userId !== user.userId) || !session.sheetTab) return Response.json({ error:"Workout session was not found" }, { status:404 });
       const accessToken = await accessTokenForUser(user.userId);
-      if (!accessToken) return Response.json({ error:"Reconnect Google Drive", code:"google_auth_required" }, { status:401 });
+      if (!accessToken) return Response.json({ error:"Reconnect Google Sheets", code:"google_auth_required" }, { status:401 });
       let sheetTab = session.sheetTab;
       if (!await sheetTabExists(accessToken, session.sourceSheetId, sheetTab)) {
         const resumedDay = session.workoutDay > 100 ? session.workoutDay - 100 : session.workoutDay;
