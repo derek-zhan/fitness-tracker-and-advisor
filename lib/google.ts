@@ -52,14 +52,6 @@ export async function pkceChallenge(verifier: string) {
 
 export function googleClientId() { return required("GOOGLE_CLIENT_ID"); }
 export function googleClientSecret() { return required("GOOGLE_CLIENT_SECRET"); }
-export function googlePickerConfig() {
-  const clientId = googleClientId();
-  return {
-    clientId,
-    apiKey: required("GOOGLE_PICKER_API_KEY"),
-    appId: workerEnv.GOOGLE_CLOUD_PROJECT_NUMBER || clientId.match(/^(\d+)-/)?.[1] || required("GOOGLE_CLOUD_PROJECT_NUMBER"),
-  };
-}
 
 export async function accessTokenForUser(userId: string) {
   const db = getDb();
@@ -88,6 +80,27 @@ async function googleJson(url: string, accessToken: string, init?: RequestInit) 
 
 function sheetApi(spreadsheetId: string, suffix = "") {
   return `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}${suffix}`;
+}
+
+export async function listGoogleSpreadsheets(accessToken:string) {
+  const params=new URLSearchParams({q:"mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",fields:"files(id,name,webViewLink,modifiedTime)",orderBy:"modifiedTime desc",pageSize:"100"});
+  const data=await googleJson(`https://www.googleapis.com/drive/v3/files?${params.toString()}`,accessToken) as {files?:Array<{id?:string;name?:string;webViewLink?:string;modifiedTime?:string}>};
+  return (data.files||[]).filter((file):file is {id:string;name:string;webViewLink?:string;modifiedTime?:string}=>Boolean(file.id&&file.name)).map(file=>({id:file.id,name:file.name,url:file.webViewLink||`https://docs.google.com/spreadsheets/d/${file.id}/edit`,modifiedTime:file.modifiedTime}));
+}
+
+export async function readSpreadsheetMetadata(accessToken:string,spreadsheetId:string) {
+  return googleJson(`${sheetApi(spreadsheetId)}?fields=properties.title,sheets.properties(title,index)`,accessToken) as Promise<{properties?:{title?:string};sheets?:Array<{properties?:{title?:string;index?:number}}>}>
+}
+
+export async function readSheetValues(accessToken:string,spreadsheetId:string,sheetName:string,range:string) {
+  const quoted=`'${sheetName.replace(/'/g,"''")}'!${range}`;
+  const data=await googleJson(`${sheetApi(spreadsheetId,`/values/${encodeURIComponent(quoted)}`)}?valueRenderOption=FORMATTED_VALUE`,accessToken) as {values?:unknown[][]};
+  return data.values||[];
+}
+
+export async function writeSheetValues(accessToken:string,spreadsheetId:string,sheetName:string,range:string,values:Array<Array<string|number>>) {
+  const quoted=`'${sheetName.replace(/'/g,"''")}'!${range}`;
+  await googleJson(`${sheetApi(spreadsheetId,`/values/${encodeURIComponent(quoted)}`)}?valueInputOption=USER_ENTERED`,accessToken,{method:"PUT",body:JSON.stringify({values})});
 }
 
 export type PreviousWorkoutSet = { exerciseIndex: number; setNumber: number; reps: number; load: number };
