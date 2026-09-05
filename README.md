@@ -69,6 +69,8 @@ GOOGLE_TOKEN_ENCRYPTION_KEY
 
 The encryption key must be a base64-encoded AES key. The Google OAuth client also needs the app's `/api/google/callback` URL registered as an authorized redirect URI.
 
+The import popup uses the same OAuth connection as workout logging. Its Google consent screen requests Sheets access plus read-only Drive metadata so Forge can display spreadsheet names without a separate Google Picker API key.
+
 ## Useful commands
 
 ```bash
