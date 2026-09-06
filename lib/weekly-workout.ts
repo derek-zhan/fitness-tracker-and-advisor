@@ -65,6 +65,15 @@ export function selectLatestWeek<T extends { title:string }>(sheets:T[]) {
   return sheets.map(sheet=>({sheet,match:/^Week\s+(\d+)$/i.exec(sheet.title)})).filter((item):item is {sheet:T;match:RegExpExecArray}=>Boolean(item.match)).sort((a,b)=>Number(b.match[1])-Number(a.match[1]))[0]?.sheet;
 }
 
+export function workoutDateParts(date:Date) {
+  if (Number.isNaN(date.getTime())) throw new Error("Invalid workout date");
+  return {
+    month:date.toLocaleDateString("en-US",{month:"long",timeZone:"America/Toronto"}),
+    day:Number(date.toLocaleDateString("en-CA",{day:"numeric",timeZone:"America/Toronto"})),
+    year:Number(date.toLocaleDateString("en-CA",{year:"numeric",timeZone:"America/Toronto"})),
+  };
+}
+
 function cellText(cell?: SheetCell) {
   if (!cell) return "";
   if (cell.formattedValue !== undefined) return String(cell.formattedValue).trim();
