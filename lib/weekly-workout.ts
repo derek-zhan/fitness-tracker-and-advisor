@@ -54,7 +54,24 @@ export type WeeklyCatalogDay = {
   available: boolean;
   error?: string;
   workout?: WeeklyWorkout;
+  continueWeek?: string;
 };
+
+export type WeeklySessionCandidate = {
+  workoutDay:number;
+  sourceSheetId:string;
+  sheetTab:string|null;
+  status:string;
+};
+
+export function attachWeeklyContinuations<T extends WeeklyCatalogDay>(days:T[],sessions:WeeklySessionCandidate[]) {
+  return days.map(day=>{
+    const workout=day.workout;
+    if (!day.available||!workout) return day;
+    const session=sessions.find(candidate=>candidate.status==="active"&&candidate.workoutDay===200+day.day&&candidate.sourceSheetId===workout.sheetId&&candidate.sheetTab===workout.sheetTab);
+    return session?.sheetTab?{...day,continueWeek:session.sheetTab}:day;
+  });
+}
 
 export function foundWeeklyDays<T extends {available:boolean;workout?:unknown}>(days:T[]) {
   return days.filter(day=>day.available&&Boolean(day.workout));

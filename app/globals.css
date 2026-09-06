@@ -137,6 +137,7 @@
 .program-weekly7 .day-card-meta{gap:10px}
 .program-weekly7 .day-card-meta{flex-direction:column;align-items:flex-end}
 .program-weekly7 .day-card.active{box-shadow:inset 4px 0 var(--acid)}
+.start-actions{display:flex;align-items:stretch;gap:9px}.continue-action{min-width:170px;padding:14px 17px;color:#fff0f0;background:#281616;border:1px solid #853535;border-radius:11px;font-weight:800}.continue-action:hover{background:#3a1b1b;border-color:var(--acid)}.continue-action:disabled{cursor:wait;opacity:.65}
 
 @media(max-width:760px){
   .view-home.program-weekly7 .day-grid{
@@ -182,4 +183,8 @@
     text-align:right;
   }
   .view-home.program-weekly7 .day-card-meta b{display:block}
+  .view-home.program-weekly7 .start-dock{align-items:stretch;gap:8px}
+  .view-home.program-weekly7 .start-dock>div:first-child{display:none}
+  .view-home.program-weekly7 .start-actions{width:100%;gap:7px}
+  .view-home.program-weekly7 .start-actions button{flex:1;min-width:0;padding:11px 9px;font-size:11px}
 }
