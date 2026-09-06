@@ -54,6 +54,10 @@ export type WeeklyCatalogDay = {
   workout?: WeeklyWorkout;
 };
 
+export function foundWeeklyDays<T extends {available:boolean;workout?:unknown}>(days:T[]) {
+  return days.filter(day=>day.available&&Boolean(day.workout));
+}
+
 export function selectWeeklyFile<T extends { name:string }>(files:T[],dayName:WeekdayName) {
   const expected=`workout ${dayName}`.toLowerCase();
   const matches=files.filter(file=>file.name.trim().toLowerCase()===expected);
