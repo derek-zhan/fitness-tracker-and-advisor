@@ -135,6 +135,7 @@
 .program-weekly7 .day-card-number{font-size:34px}
 .program-weekly7 .day-card-type{font-size:15px}
 .program-weekly7 .day-card-meta{gap:10px}
+.program-weekly7 .day-card-meta{flex-direction:column;align-items:flex-end}
 .program-weekly7 .day-card.active{box-shadow:inset 4px 0 var(--acid)}
 
 @media(max-width:760px){
@@ -180,4 +181,5 @@
     margin:0;
     text-align:right;
   }
+  .view-home.program-weekly7 .day-card-meta b{display:block}
 }
