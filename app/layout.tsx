@@ -8,7 +8,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const image = `${protocol}://${host}/og.png`;
   const title = "Forge — Guided Workout Log";
-  const description = "A mobile-first guided workout log with four-day strength and six-day glute programs.";
+  const description = "A mobile-first guided workout log with strength, glute, and live seven-day Google Sheets programs.";
   return {
     title,
     description,

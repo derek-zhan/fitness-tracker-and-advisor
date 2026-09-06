@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Forge",
@@ -9,25 +10,25 @@ export default function PrivacyPage() {
   return (
     <main className="legal-shell">
       <header className="legal-header">
-        <a className="wordmark" href="/" aria-label="Back to Forge">
+        <Link className="wordmark" href="/" aria-label="Back to Forge">
           <span className="mark">F</span><span>FORGE</span>
-        </a>
-        <a href="/">Back to workouts</a>
+        </Link>
+        <Link href="/">Back to workouts</Link>
       </header>
 
       <article className="legal-card">
         <p className="kicker">PRIVACY POLICY</p>
         <h1>Your workout data stays yours.</h1>
-        <p className="legal-updated">Effective August 25, 2026</p>
+        <p className="legal-updated">Effective September 5, 2026</p>
 
         <section>
           <h2>What Forge accesses</h2>
-          <p>When you connect Google, Forge requests your Google account email address and permission to view and update Google Sheets. Forge uses that access only to identify your connection and to create and update workout entries in the spreadsheets used by the app.</p>
+          <p>When you connect Google, Forge requests your Google account email address, permission to view and update Google Sheets, and read-only access to spreadsheet file names in Google Drive. Forge uses Drive metadata only to find files named Workout Monday through Workout Sunday, then reads and updates those workout sheets when you use the seven-day program.</p>
         </section>
 
         <section>
           <h2>What Forge stores</h2>
-          <p>Forge stores your Google account email address, an encrypted Google authorization token, and workout-session information needed to keep your workout log in sync. Your Google password is never received or stored by Forge.</p>
+          <p>Forge stores your Google account email address, an encrypted Google authorization token, the selected workout sheet ID, and workout-session information needed to keep your workout log in sync. Forge does not store a copy of your Google Drive file list or your Google password.</p>
         </section>
 
         <section>

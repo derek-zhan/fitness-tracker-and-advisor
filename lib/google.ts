@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { googleConnections } from "../db/schema";
+import { parseWeeklyWorkout, readPreviousWeeklySets, selectLatestWeek, selectWeeklyFile, WEEKDAYS, type SheetCell, type WeeklyCatalogDay, type WeeklyWorkout } from "./weekly-workout";
 
 const workerEnv = env as unknown as Record<string, string | undefined>;
 
@@ -76,6 +77,121 @@ async function googleJson(url: string, accessToken: string, init?: RequestInit) 
     throw new Error(apiError?.message || "Google Sheets update failed");
   }
   return data;
+}
+
+function quotedSheet(sheetTab: string) {
+  return `'${sheetTab.replace(/'/g, "''")}'`;
+}
+
+type WeeklyFile = { id:string; name:string; webViewLink?:string };
+
+export async function listWeeklyWorkoutFiles(accessToken:string) {
+  const query = "mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and name contains 'Workout'";
+  const params = new URLSearchParams({ q:query, fields:"files(id,name,webViewLink,modifiedTime)", pageSize:"100", orderBy:"modifiedTime desc" });
+  const data = await googleJson(`https://www.googleapis.com/drive/v3/files?${params.toString()}`,accessToken) as {files?:WeeklyFile[]};
+  return data.files || [];
+}
+
+async function weeklySheetMetadata(accessToken:string,spreadsheetId:string) {
+  return googleJson(`${sheetApi(spreadsheetId)}?fields=properties.title,sheets.properties(sheetId,title,index)`,accessToken) as Promise<{properties?:{title?:string};sheets?:Array<{properties?:{sheetId?:number;title?:string;index?:number}}>}>;
+}
+
+async function readWeeklySheetRows(accessToken:string,spreadsheetId:string,sheetTab:string) {
+  const params = new URLSearchParams({ includeGridData:"true", ranges:`${quotedSheet(sheetTab)}!A1:I250`, fields:"sheets(data(rowData(values(formattedValue,effectiveValue,hyperlink,userEnteredFormat(textFormat(link)),textFormatRuns(format(link))))))" });
+  const data = await googleJson(`${sheetApi(spreadsheetId)}?${params.toString()}`,accessToken) as {sheets?:Array<{data?:Array<{rowData?:Array<{values?:SheetCell[]}>}>}>};
+  return (data.sheets?.[0]?.data?.[0]?.rowData || []).map(row => row.values || []);
+}
+
+function latestWeek(metadata:Awaited<ReturnType<typeof weeklySheetMetadata>>) {
+  return selectLatestWeek((metadata.sheets || []).map(sheet => {
+    const title = sheet.properties?.title || "";
+    const match = /^Week\s+(\d+)$/i.exec(title);
+    return match && sheet.properties?.sheetId !== undefined ? { title, number:Number(match[1]), sheetId:sheet.properties.sheetId, index:sheet.properties.index || 0 } : null;
+  }).filter((item):item is {title:string;number:number;sheetId:number;index:number} => Boolean(item)));
+}
+
+async function parseWeeklyFile(accessToken:string,file:WeeklyFile,day:number,sheetTab?:string) {
+  const dayName = WEEKDAYS[day-1];
+  if (!dayName) throw new Error("Invalid weekday");
+  const metadata = await weeklySheetMetadata(accessToken,file.id);
+  const week = sheetTab ? (metadata.sheets || []).map(sheet => ({ title:sheet.properties?.title || "", sheetId:sheet.properties?.sheetId })).find(sheet => sheet.title === sheetTab) : latestWeek(metadata);
+  if (!week?.title) throw new Error(sheetTab ? `${sheetTab} was not found` : "No Week tab found");
+  const rows = await readWeeklySheetRows(accessToken,file.id,week.title);
+  const workout = parseWeeklyWorkout({ day, dayName, sheetId:file.id, sheetUrl:file.webViewLink || `https://docs.google.com/spreadsheets/d/${file.id}/edit`, sheetTab:week.title, rows });
+  return { workout, rows, metadata, week };
+}
+
+function fileForDay(files:WeeklyFile[],day:number) {
+  const dayName = WEEKDAYS[day-1];
+  if (!dayName) return undefined;
+  return selectWeeklyFile(files,dayName);
+}
+
+export async function readWeeklyWorkoutCatalog(accessToken:string):Promise<WeeklyCatalogDay[]> {
+  const files = await listWeeklyWorkoutFiles(accessToken);
+  return Promise.all(WEEKDAYS.map(async (dayName,index) => {
+    const day=index+1;
+    try {
+      const file=fileForDay(files,day);
+      if (!file) return { day,dayName,available:false,error:"Sheet not found" };
+      const {workout}=await parseWeeklyFile(accessToken,file,day);
+      return {day,dayName,available:true,workout};
+    } catch (error) {
+      return {day,dayName,available:false,error:error instanceof Error?error.message:"Sheet could not be read"};
+    }
+  }));
+}
+
+export async function resumeWeeklyWorkout(accessToken:string,spreadsheetId:string,sheetTab:string,day:number) {
+  const metadata=await weeklySheetMetadata(accessToken,spreadsheetId);
+  const file:WeeklyFile={id:spreadsheetId,name:metadata.properties?.title || `Workout ${WEEKDAYS[day-1]}`,webViewLink:`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`};
+  return parseWeeklyFile(accessToken,file,day,sheetTab);
+}
+
+export async function readPreviousWeeklyWorkoutSets(accessToken:string,workout:WeeklyWorkout) {
+  const match=/^Week\s+(\d+)$/i.exec(workout.sheetTab);
+  if (!match || Number(match[1])<=1) return [];
+  try {
+    const previous=await resumeWeeklyWorkout(accessToken,workout.sheetId,`Week ${Number(match[1])-1}`,workout.day);
+    return readPreviousWeeklySets(previous.workout,previous.rows);
+  } catch {
+    return [];
+  }
+}
+
+export async function createWeeklyWorkout(accessToken:string,day:number) {
+  const files=await listWeeklyWorkoutFiles(accessToken);
+  const file=fileForDay(files,day);
+  if (!file) throw new Error(`${WEEKDAYS[day-1]} workout sheet was not found`);
+  const parsed=await parseWeeklyFile(accessToken,file,day);
+  const current=latestWeek(parsed.metadata);
+  if (!current) throw new Error("No Week tab found");
+  const title=`Week ${current.number+1}`;
+  await googleJson(`${sheetApi(file.id,":batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({requests:[{duplicateSheet:{sourceSheetId:current.sheetId,insertSheetIndex:current.index+1,newSheetName:title}}]})});
+  const previousSets=readPreviousWeeklySets(parsed.workout,parsed.rows);
+  const ranges=parsed.workout.exercises.map(exercise => `${quotedSheet(title)}!${parsed.workout.repsColumn}${exercise.sheetRow}:${parsed.workout.commentsColumn}${exercise.sheetRow+exercise.sets-1}`);
+  ranges.push(`${quotedSheet(title)}!${parsed.workout.cardioStatusCell}`,`${quotedSheet(title)}!${parsed.workout.notesCell}`);
+  await googleJson(`${sheetApi(file.id,"/values:batchClear")}`,accessToken,{method:"POST",body:JSON.stringify({ranges})});
+  const created=await parseWeeklyFile(accessToken,file,day,title);
+  return {workout:created.workout,previousSets};
+}
+
+export async function writeWeeklyWorkoutSet(accessToken:string,workout:WeeklyWorkout,exerciseOrder:string,exerciseName:string,setNumber:number,reps:number,load:number) {
+  const source=await resumeWeeklyWorkout(accessToken,workout.sheetId,workout.sheetTab,workout.day);
+  const exercise=source.workout.exercises.find(item => item.order===exerciseOrder && item.name===exerciseName);
+  if (!exercise || setNumber<1 || setNumber>exercise.sets) throw new Error("Exercise set was not found in the workout sheet");
+  const row=exercise.sheetRow+setNumber-1;
+  const range=encodeURIComponent(`${quotedSheet(workout.sheetTab)}!${source.workout.repsColumn}${row}:${source.workout.loadColumn}${row}`);
+  await googleJson(`${sheetApi(workout.sheetId,`/values/${range}`)}?valueInputOption=USER_ENTERED`,accessToken,{method:"PUT",body:JSON.stringify({values:[[reps,load]]})});
+}
+
+export async function finishWeeklyWorkout(accessToken:string,workout:WeeklyWorkout,cardioCompleted:boolean,notes:string) {
+  const source=await resumeWeeklyWorkout(accessToken,workout.sheetId,workout.sheetTab,workout.day);
+  const tab=quotedSheet(workout.sheetTab);
+  await googleJson(`${sheetApi(workout.sheetId,"/values:batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({valueInputOption:"USER_ENTERED",data:[
+    {range:`${tab}!${source.workout.cardioStatusCell}`,values:[[cardioCompleted?"Completed":"Skipped"]]},
+    {range:`${tab}!${source.workout.notesCell}`,values:[[notes.trim()]]},
+  ]})});
 }
 
 function sheetApi(spreadsheetId: string, suffix = "") {

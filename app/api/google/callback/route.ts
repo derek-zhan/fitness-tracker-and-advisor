@@ -24,7 +24,8 @@ export async function GET(request: Request) {
     if (profileResponse.ok) email = ((await profileResponse.json()) as { email?: string }).email || null;
   }
   await db.insert(googleConnections).values({ userId: state.userId, email, encryptedRefreshToken: await encryptToken(tokens.refresh_token) }).onConflictDoUpdate({ target: googleConnections.userId, set: { email, encryptedRefreshToken: await encryptToken(tokens.refresh_token), updatedAt: new Date().toISOString() } });
-  const isGlute = state.workoutDay > 100;
-  const day = isGlute ? state.workoutDay - 100 : state.workoutDay;
-  return Response.redirect(`${url.origin}/?google=connected&program=${isGlute?"glute6":"strength4"}&day=${day}`, 302);
+  const isWeekly = state.workoutDay > 200;
+  const isGlute = !isWeekly && state.workoutDay > 100;
+  const day = isWeekly ? state.workoutDay - 200 : isGlute ? state.workoutDay - 100 : state.workoutDay;
+  return Response.redirect(`${url.origin}/?google=connected&program=${isWeekly?"weekly7":isGlute?"glute6":"strength4"}&day=${day}`, 302);
 }

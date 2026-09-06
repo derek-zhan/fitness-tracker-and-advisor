@@ -2,11 +2,11 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { workoutSessions, workoutSets } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
-import { accessTokenForUser, createWorkoutWeek, ensureWorkoutLogSheet, readPreviousWeekWorkoutSets, sheetTabExists, upsertWorkoutSetLog, writeWorkoutSet } from "../../../lib/google";
+import { accessTokenForUser, createWeeklyWorkout, createWorkoutWeek, ensureWorkoutLogSheet, finishWeeklyWorkout, readPreviousWeeklyWorkoutSets, readPreviousWeekWorkoutSets, readWeeklyWorkoutCatalog, resumeWeeklyWorkout, sheetTabExists, upsertWorkoutSetLog, writeWeeklyWorkoutSet, writeWorkoutSet } from "../../../lib/google";
 
 type Payload = {
   action?: "start" | "set" | "finish";
-  program?: "strength4" | "glute6";
+  program?: "strength4" | "glute6" | "weekly7";
   day?: number;
   dayLabel?: string;
   workoutType?: string;
@@ -14,12 +14,15 @@ type Payload = {
   date?: string;
   sessionId?: string;
   exercise?: string;
+  exerciseOrder?: string;
   setNumber?: number;
   exerciseIndex?: number;
   reps?: number;
   load?: number;
   durationMinutes?: number;
   totalSets?: number;
+  cardioCompleted?: boolean;
+  notes?: string;
 };
 
 export async function POST(request: Request) {
@@ -29,31 +32,41 @@ export async function POST(request: Request) {
     const user = await getChatGPTUser();
     if (!user) return Response.json({ error:"Please sign in to the workout site" }, { status:401 });
     if (payload.action === "start") {
-      if (!payload.day || !payload.sheetId || !payload.date) return Response.json({ error:"Missing workout details" }, { status:400 });
+      if (!payload.day || (!payload.sheetId && payload.program!=="weekly7") || !payload.date) return Response.json({ error:"Missing workout details" }, { status:400 });
       const accessToken = await accessTokenForUser(user.userId);
       if (!accessToken) return Response.json({ error:"Connect Google Sheets before starting", code:"google_auth_required" }, { status:401 });
       const isGlute = payload.program === "glute6";
-      const requestedWorkoutDay = isGlute ? 100 + payload.day : payload.day;
+      const isWeekly = payload.program === "weekly7";
+      let sourceSheetId=payload.sheetId;
+      if (isWeekly) {
+        const entry=(await readWeeklyWorkoutCatalog(accessToken))[payload.day-1];
+        if (!entry?.available || !entry.workout) return Response.json({error:entry?.error || "Workout sheet was not found"},{status:404});
+        sourceSheetId=entry.workout.sheetId;
+      }
+      if (!sourceSheetId) return Response.json({ error:"Missing workout sheet" }, { status:400 });
+      const requestedWorkoutDay = isWeekly ? 200 + payload.day : isGlute ? 100 + payload.day : payload.day;
       const exerciseSets: Record<number, number[]> = { 1:[4,4,3,4,3,3,3], 2:[4,4,3,4,3], 3:[4,4,4,4,4,3,3], 4:[4,3,4,3,3] };
-      let [activeSession] = await db.select().from(workoutSessions).where(and(eq(workoutSessions.userId,user.userId),eq(workoutSessions.status,"active"),eq(workoutSessions.workoutDay,requestedWorkoutDay),eq(workoutSessions.sourceSheetId,payload.sheetId))).orderBy(desc(workoutSessions.createdAt)).limit(1);
+      const activeSessions = await db.select().from(workoutSessions).where(and(eq(workoutSessions.userId,user.userId),eq(workoutSessions.status,"active"),eq(workoutSessions.workoutDay,requestedWorkoutDay),eq(workoutSessions.sourceSheetId,sourceSheetId))).orderBy(desc(workoutSessions.createdAt)).limit(1);
+      let activeSession:typeof workoutSessions.$inferSelect|undefined=activeSessions[0];
       if (activeSession && (!activeSession.sheetTab || !await sheetTabExists(accessToken, activeSession.sourceSheetId, activeSession.sheetTab))) {
         await db.update(workoutSessions).set({ status:"abandoned", completedAt:new Date().toISOString() }).where(eq(workoutSessions.id,activeSession.id));
         activeSession = undefined;
       }
       if (activeSession) {
         const savedSets = await db.select({ exercise:workoutSets.exercise, setNumber:workoutSets.setNumber, reps:workoutSets.reps, load:workoutSets.load }).from(workoutSets).where(eq(workoutSets.sessionId,activeSession.id)).orderBy(workoutSets.id);
-        const resumedDay = activeSession.workoutDay > 100 ? activeSession.workoutDay - 100 : activeSession.workoutDay;
+        const resumedDay = activeSession.workoutDay > 200 ? activeSession.workoutDay - 200 : activeSession.workoutDay > 100 ? activeSession.workoutDay - 100 : activeSession.workoutDay;
         const exerciseSets: Record<number, number[]> = { 1:[4,4,3,4,3,3,3], 2:[4,4,3,4,3], 3:[4,4,4,4,4,3,3], 4:[4,3,4,3,3] };
-        const previousSets = activeSession.workoutDay <= 100 && activeSession.sheetTab
-          ? await readPreviousWeekWorkoutSets(accessToken, activeSession.sourceSheetId, activeSession.sheetTab, exerciseSets[resumedDay] || [])
-          : [];
-        return Response.json({ sessionId:activeSession.id, workoutDay:activeSession.workoutDay, workoutDate:activeSession.workoutDate, sets:savedSets, previousSets, resumed:true });
+        const weeklySource=activeSession.workoutDay>200&&activeSession.sheetTab?await resumeWeeklyWorkout(accessToken,activeSession.sourceSheetId,activeSession.sheetTab,resumedDay):null;
+        const previousSets = weeklySource ? await readPreviousWeeklyWorkoutSets(accessToken,weeklySource.workout) : activeSession.workoutDay <= 100 && activeSession.sheetTab
+          ? await readPreviousWeekWorkoutSets(accessToken, activeSession.sourceSheetId, activeSession.sheetTab, exerciseSets[resumedDay] || []) : [];
+        return Response.json({ sessionId:activeSession.id, workoutDay:activeSession.workoutDay, workoutDate:activeSession.workoutDate, sets:savedSets, previousSets, workout:weeklySource?.workout, resumed:true });
       }
-      const workoutWeek = isGlute ? null : await createWorkoutWeek(accessToken, payload.sheetId, new Date(payload.date), exerciseSets[payload.day] || []);
-      const sheetTab = isGlute ? await ensureWorkoutLogSheet(accessToken, payload.sheetId) : workoutWeek!.sheetTab;
+      const weeklyWorkout=isWeekly?await createWeeklyWorkout(accessToken,payload.day):null;
+      const workoutWeek = isGlute||isWeekly ? null : await createWorkoutWeek(accessToken, sourceSheetId, new Date(payload.date), exerciseSets[payload.day] || []);
+      const sheetTab = isWeekly ? weeklyWorkout!.workout.sheetTab : isGlute ? await ensureWorkoutLogSheet(accessToken, sourceSheetId) : workoutWeek!.sheetTab;
       const sessionId = crypto.randomUUID();
-      await db.insert(workoutSessions).values({ id:sessionId, workoutDay:isGlute?100+payload.day:payload.day, sourceSheetId:payload.sheetId, workoutDate:payload.date, userId:user.userId, sheetTab });
-      return Response.json({ sessionId, sheetTab, previousSets:workoutWeek?.previousSets || [] }, { status:201 });
+      await db.insert(workoutSessions).values({ id:sessionId, workoutDay:requestedWorkoutDay, sourceSheetId, workoutDate:payload.date, userId:user.userId, sheetTab });
+      return Response.json({ sessionId, sheetTab, workout:weeklyWorkout?.workout, previousSets:weeklyWorkout?.previousSets || workoutWeek?.previousSets || [] }, { status:201 });
     }
     if (payload.action === "set") {
       if (!payload.sessionId || !payload.day || !payload.exercise || !payload.setNumber || payload.exerciseIndex === undefined) return Response.json({ error:"Missing set details" }, { status:400 });
@@ -63,14 +76,21 @@ export async function POST(request: Request) {
       if (!accessToken) return Response.json({ error:"Reconnect Google Sheets", code:"google_auth_required" }, { status:401 });
       let sheetTab = session.sheetTab;
       if (!await sheetTabExists(accessToken, session.sourceSheetId, sheetTab)) {
-        const resumedDay = session.workoutDay > 100 ? session.workoutDay - 100 : session.workoutDay;
+        const resumedDay = session.workoutDay > 200 ? session.workoutDay - 200 : session.workoutDay > 100 ? session.workoutDay - 100 : session.workoutDay;
         const exerciseSets: Record<number, number[]> = { 1:[4,4,3,4,3,3,3], 2:[4,4,3,4,3], 3:[4,4,4,4,4,3,3], 4:[4,3,4,3,3] };
-        sheetTab = session.workoutDay > 100
+        sheetTab = session.workoutDay > 200
+          ? (await createWeeklyWorkout(accessToken,resumedDay)).workout.sheetTab
+          : session.workoutDay > 100
           ? await ensureWorkoutLogSheet(accessToken, session.sourceSheetId)
           : (await createWorkoutWeek(accessToken, session.sourceSheetId, new Date(session.workoutDate), exerciseSets[resumedDay] || [])).sheetTab;
         await db.update(workoutSessions).set({ sheetTab }).where(eq(workoutSessions.id,session.id));
       }
-      if (sheetTab === "Workout Log") {
+      if (session.workoutDay>200) {
+        if (!payload.exerciseOrder) return Response.json({error:"Missing exercise order"},{status:400});
+        const day=session.workoutDay-200;
+        const source=await resumeWeeklyWorkout(accessToken,session.sourceSheetId,sheetTab,day);
+        await writeWeeklyWorkoutSet(accessToken,source.workout,payload.exerciseOrder,payload.exercise,payload.setNumber,payload.reps??0,payload.load??0);
+      } else if (sheetTab === "Workout Log") {
         await upsertWorkoutSetLog(accessToken, session.sourceSheetId, [(session.workoutDate||new Date().toISOString()).slice(0,10),"Glute 6-Day",payload.dayLabel||`Day ${payload.day}`,payload.workoutType||"",payload.exercise,payload.setNumber,payload.reps??0,payload.load??0,""]);
       } else {
         await writeWorkoutSet(accessToken, session.sourceSheetId, sheetTab, payload.exerciseIndex, payload.setNumber, payload.reps ?? 0, payload.load ?? 0);
@@ -83,6 +103,14 @@ export async function POST(request: Request) {
     }
     if (payload.action === "finish") {
       if (!payload.sessionId) return Response.json({ error:"Missing session" }, { status:400 });
+      const [session]=await db.select().from(workoutSessions).where(eq(workoutSessions.id,payload.sessionId)).limit(1);
+      if (!session || (session.userId&&session.userId!==user.userId)) return Response.json({error:"Workout session was not found"},{status:404});
+      if (session.workoutDay>200&&session.sheetTab) {
+        const accessToken=await accessTokenForUser(user.userId);
+        if (!accessToken) return Response.json({error:"Reconnect Google Sheets",code:"google_auth_required"},{status:401});
+        const source=await resumeWeeklyWorkout(accessToken,session.sourceSheetId,session.sheetTab,session.workoutDay-200);
+        await finishWeeklyWorkout(accessToken,source.workout,Boolean(payload.cardioCompleted),payload.notes||"");
+      }
       await db.update(workoutSessions).set({ status:"complete", durationMinutes:payload.durationMinutes ?? 0, totalSets:payload.totalSets ?? 0, completedAt:new Date().toISOString() }).where(eq(workoutSessions.id,payload.sessionId));
       return Response.json({ complete:true });
     }
