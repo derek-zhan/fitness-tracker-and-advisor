@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { foundWeeklyDays, nextWeeklyTab, parseWeeklyWorkout, selectLatestWeek, selectWeeklyFile, weeklyWorkoutDateLabel, workoutDateParts, youtubeEmbedUrl, type SheetCell } from "../lib/weekly-workout.ts";
+import { attachWeeklyContinuations, foundWeeklyDays, nextWeeklyTab, parseWeeklyWorkout, selectLatestWeek, selectWeeklyFile, weeklyWorkoutDateLabel, workoutDateParts, youtubeEmbedUrl, type SheetCell, type WeeklyCatalogDay } from "../lib/weekly-workout.ts";
 
 const value=(formattedValue:string,hyperlink?:string):SheetCell=>({formattedValue,...(hyperlink?{hyperlink}:{})});
 
@@ -81,4 +81,17 @@ test("shows only weekly sheets that were found and parsed",()=>{
     {day:3,available:true},
   ]);
   assert.deepEqual(days.map(item=>item.day),[1]);
+});
+
+test("offers Continue only for an active session on the latest Week tab",()=>{
+  const workout={program:"weekly7",day:1,dayName:"Monday",sheetId:"monday",sheetTab:"Week 3"} as WeeklyCatalogDay["workout"];
+  const [day]=attachWeeklyContinuations([{day:1,dayName:"Monday",available:true,workout}], [
+    {workoutDay:201,sourceSheetId:"monday",sheetTab:"Week 2",status:"active"},
+    {workoutDay:201,sourceSheetId:"monday",sheetTab:"Week 3",status:"complete"},
+  ]);
+  assert.equal(day.continueWeek,undefined);
+  const [continuable]=attachWeeklyContinuations([{day:1,dayName:"Monday",available:true,workout}], [
+    {workoutDay:201,sourceSheetId:"monday",sheetTab:"Week 3",status:"active"},
+  ]);
+  assert.equal(continuable.continueWeek,"Week 3");
 });

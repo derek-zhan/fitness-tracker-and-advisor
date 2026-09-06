@@ -6,6 +6,7 @@ import { accessTokenForUser, createWeeklyWorkout, createWorkoutWeek, ensureWorko
 
 type Payload = {
   action?: "start" | "set" | "finish";
+  mode?: "new" | "continue";
   program?: "strength4" | "glute6" | "weekly7";
   day?: number;
   dayLabel?: string;
@@ -37,11 +38,14 @@ export async function POST(request: Request) {
       if (!accessToken) return Response.json({ error:"Connect Google Sheets before starting", code:"google_auth_required" }, { status:401 });
       const isGlute = payload.program === "glute6";
       const isWeekly = payload.program === "weekly7";
+      const continueWeekly = isWeekly && payload.mode === "continue";
       let sourceSheetId=payload.sheetId;
+      let latestWeeklyTab="";
       if (isWeekly) {
         const entry=(await readWeeklyWorkoutCatalog(accessToken))[payload.day-1];
         if (!entry?.available || !entry.workout) return Response.json({error:entry?.error || "Workout sheet was not found"},{status:404});
         sourceSheetId=entry.workout.sheetId;
+        latestWeeklyTab=entry.workout.sheetTab;
       }
       if (!sourceSheetId) return Response.json({ error:"Missing workout sheet" }, { status:400 });
       const requestedWorkoutDay = isWeekly ? 200 + payload.day : isGlute ? 100 + payload.day : payload.day;
@@ -51,6 +55,11 @@ export async function POST(request: Request) {
       if (activeSession && (!activeSession.sheetTab || !await sheetTabExists(accessToken, activeSession.sourceSheetId, activeSession.sheetTab))) {
         await db.update(workoutSessions).set({ status:"abandoned", completedAt:new Date().toISOString() }).where(eq(workoutSessions.id,activeSession.id));
         activeSession = undefined;
+      }
+      if (continueWeekly&&(!activeSession||activeSession.sheetTab!==latestWeeklyTab)) return Response.json({error:"The latest workout does not have an unfinished session to continue"},{status:409});
+      if (isWeekly&&!continueWeekly&&activeSession) {
+        await db.update(workoutSessions).set({status:"abandoned",completedAt:new Date().toISOString()}).where(eq(workoutSessions.id,activeSession.id));
+        activeSession=undefined;
       }
       if (activeSession) {
         const savedSets = await db.select({ exercise:workoutSets.exercise, setNumber:workoutSets.setNumber, reps:workoutSets.reps, load:workoutSets.load }).from(workoutSets).where(eq(workoutSets.sessionId,activeSession.id)).orderBy(workoutSets.id);
