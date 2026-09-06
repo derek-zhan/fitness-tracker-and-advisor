@@ -12,6 +12,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title,
     description,
+    icons: {
+      icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+      shortcut: "/favicon.svg",
+      apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    },
     openGraph: { title, description, images:[{ url:image, width:1200, height:630, alt:"Forge — Show up. Move forward." }] },
     twitter: { card:"summary_large_image", title, description, images:[image] },
   };

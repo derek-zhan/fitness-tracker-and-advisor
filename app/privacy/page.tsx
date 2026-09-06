@@ -11,7 +11,7 @@ export default function PrivacyPage() {
     <main className="legal-shell">
       <header className="legal-header">
         <Link className="wordmark" href="/" aria-label="Back to Forge">
-          <span className="mark">F</span><span>FORGE</span>
+          <span className="mark" aria-hidden="true"/><span>FORGE</span>
         </Link>
         <Link href="/">Back to workouts</Link>
       </header>
