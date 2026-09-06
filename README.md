@@ -16,9 +16,10 @@ Forge turns that same information into a focused workout flow. Google Sheets sta
 
 ## What Forge does
 
-- Guides me through four-day strength and six-day glute programs.
-- Shows an embedded YouTube demonstration and a coaching cue for every exercise.
-- Records reps and load with large, phone-friendly controls.
+- Guides me through four-day strength, six-day glute, and live seven-day Google Sheets programs.
+- Finds `Workout Monday` through `Workout Sunday` in Google Drive and reads each latest `Week N` tab dynamically.
+- Starts sheet-driven sessions with the linked warm-up video, then shows each exercise’s linked YouTube demonstration and coaching cue.
+- Records reps and load with large, phone-friendly controls, then saves cardio completion and session notes.
 - Saves every set directly to the connected Google Sheet.
 - Remembers an active workout so I can leave and continue later.
 - Lets me revisit and correct sets I have already logged.
