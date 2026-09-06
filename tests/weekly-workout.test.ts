@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { foundWeeklyDays, parseWeeklyWorkout, selectLatestWeek, selectWeeklyFile, workoutDateParts, youtubeEmbedUrl, type SheetCell } from "../lib/weekly-workout.ts";
+import { foundWeeklyDays, nextWeeklyTab, parseWeeklyWorkout, selectLatestWeek, selectWeeklyFile, weeklyWorkoutDateLabel, workoutDateParts, youtubeEmbedUrl, type SheetCell } from "../lib/weekly-workout.ts";
 
 const value=(formattedValue:string,hyperlink?:string):SheetCell=>({formattedValue,...(hyperlink?{hyperlink}:{})});
 
 test("parses the verified Week tab structure and write locations",()=>{
   const rows:SheetCell[][]=[
     [value(""),value("Workout")],
-    [value(""),value("Warm Up Video","https://youtu.be/VqGVoVn7xjA")],
+    [value(""),value("Warm Up Video","https://youtu.be/VqGVoVn7xjA"),value(""),value(""),value(""),value("September"),value(""),value("5"),value("2026")],
     [value(""),value("Order"),value("Exercise"),value("Quick Cues"),value("Volume"),value("Reps"),value("Load"),value("Comments"),value("Rest")],
     [value(""),value("A1"),value("Dumbbell Press","https://www.youtube.com/watch?v=VmB1G1K7v94"),value("Control every rep"),value("4 x 8 - 10"),value("10"),value("50"),value(""),value("90s")],
     [value(""),value(""),value(""),value(""),value(""),value("9"),value("50")],
@@ -34,6 +34,8 @@ test("parses the verified Week tab structure and write locations",()=>{
   assert.equal(workout.notesCell,"B19");
   assert.equal(workout.repsColumn,"F");
   assert.equal(workout.loadColumn,"G");
+  assert.equal(workout.previousDate,"Sep 5, 2026");
+  assert.equal(workout.nextWeek,"Week 3");
 });
 
 test("supports watch, Shorts, youtu.be, and missing YouTube links",()=>{
@@ -59,6 +61,17 @@ test("matches exact weekday files and selects the highest numbered Week tab",()=
 test("formats the weekly workout start date in Toronto time",()=>{
   assert.deepEqual(workoutDateParts(new Date("2026-09-06T01:30:00.000Z")),{month:"September",day:5,year:2026});
   assert.throws(()=>workoutDateParts(new Date("invalid")),/Invalid workout date/);
+});
+
+test("omits an invalid or empty previous workout date",()=>{
+  assert.equal(weeklyWorkoutDateLabel([[],[]]),undefined);
+  assert.equal(weeklyWorkoutDateLabel([[],[value(""),value(""),value(""),value(""),value(""),value("Month"),value(""),value("Day"),value("Year")]]),undefined);
+});
+
+test("shows the next Week tab that will be created",()=>{
+  assert.equal(nextWeeklyTab("Week 2"),"Week 3");
+  assert.equal(nextWeeklyTab("week 11"),"Week 12");
+  assert.equal(nextWeeklyTab("Workout Log"),undefined);
 });
 
 test("shows only weekly sheets that were found and parsed",()=>{

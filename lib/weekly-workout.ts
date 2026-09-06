@@ -36,6 +36,8 @@ export type WeeklyWorkout = {
   sheetUrl: string;
   sheetTab: string;
   lastDate: string;
+  previousDate?: string;
+  nextWeek?: string;
   warmupVideoUrl?: string;
   exercises: WeeklyExercise[];
   cardio: string;
@@ -76,6 +78,20 @@ export function workoutDateParts(date:Date) {
     day:Number(date.toLocaleDateString("en-CA",{day:"numeric",timeZone:"America/Toronto"})),
     year:Number(date.toLocaleDateString("en-CA",{year:"numeric",timeZone:"America/Toronto"})),
   };
+}
+
+export function weeklyWorkoutDateLabel(rows:SheetCell[][]) {
+  const month=cellText(rows[1]?.[5]);
+  const day=Number(cellText(rows[1]?.[7]));
+  const year=Number(cellText(rows[1]?.[8]));
+  const monthIndex=["january","february","march","april","may","june","july","august","september","october","november","december"].indexOf(month.toLowerCase());
+  if (monthIndex<0||!Number.isInteger(day)||day<1||day>31||!Number.isInteger(year)||year<2000) return undefined;
+  return `${month.slice(0,3)} ${day}, ${year}`;
+}
+
+export function nextWeeklyTab(sheetTab:string) {
+  const match=/^Week\s+(\d+)$/i.exec(sheetTab.trim());
+  return match?`Week ${Number(match[1])+1}`:undefined;
 }
 
 function cellText(cell?: SheetCell) {
@@ -239,6 +255,8 @@ export function parseWeeklyWorkout(args: {
     sheetUrl,
     sheetTab,
     lastDate: sheetTab,
+    previousDate:weeklyWorkoutDateLabel(rows),
+    nextWeek:nextWeeklyTab(sheetTab),
     warmupVideoUrl,
     exercises,
     cardio,
