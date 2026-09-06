@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { googleConnections } from "../db/schema";
-import { parseWeeklyWorkout, readPreviousWeeklySets, selectLatestWeek, selectWeeklyFile, WEEKDAYS, type SheetCell, type WeeklyCatalogDay, type WeeklyWorkout } from "./weekly-workout";
+import { parseWeeklyWorkout, readPreviousWeeklySets, selectLatestWeek, selectWeeklyFile, WEEKDAYS, workoutDateParts, type SheetCell, type WeeklyCatalogDay, type WeeklyWorkout } from "./weekly-workout";
 
 const workerEnv = env as unknown as Record<string, string | undefined>;
 
@@ -159,7 +159,17 @@ export async function readPreviousWeeklyWorkoutSets(accessToken:string,workout:W
   }
 }
 
-export async function createWeeklyWorkout(accessToken:string,day:number) {
+export async function writeWeeklyWorkoutDate(accessToken:string,spreadsheetId:string,sheetTab:string,date:Date) {
+  const {month,day,year}=workoutDateParts(date);
+  const tab=quotedSheet(sheetTab);
+  await googleJson(`${sheetApi(spreadsheetId,"/values:batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({valueInputOption:"USER_ENTERED",data:[
+    {range:`${tab}!F2`,values:[[month]]},
+    {range:`${tab}!H2`,values:[[day]]},
+    {range:`${tab}!I2`,values:[[year]]},
+  ]})});
+}
+
+export async function createWeeklyWorkout(accessToken:string,day:number,date:Date) {
   const files=await listWeeklyWorkoutFiles(accessToken);
   const file=fileForDay(files,day);
   if (!file) throw new Error(`${WEEKDAYS[day-1]} workout sheet was not found`);
@@ -168,6 +178,7 @@ export async function createWeeklyWorkout(accessToken:string,day:number) {
   if (!current) throw new Error("No Week tab found");
   const title=`Week ${current.number+1}`;
   await googleJson(`${sheetApi(file.id,":batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({requests:[{duplicateSheet:{sourceSheetId:current.sheetId,insertSheetIndex:current.index+1,newSheetName:title}}]})});
+  await writeWeeklyWorkoutDate(accessToken,file.id,title,date);
   const previousSets=readPreviousWeeklySets(parsed.workout,parsed.rows);
   const ranges=parsed.workout.exercises.map(exercise => `${quotedSheet(title)}!${parsed.workout.repsColumn}${exercise.sheetRow}:${parsed.workout.commentsColumn}${exercise.sheetRow+exercise.sets-1}`);
   ranges.push(`${quotedSheet(title)}!${parsed.workout.cardioStatusCell}`,`${quotedSheet(title)}!${parsed.workout.notesCell}`);

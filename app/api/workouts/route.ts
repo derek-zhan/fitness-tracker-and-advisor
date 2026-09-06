@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { workoutSessions, workoutSets } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
-import { accessTokenForUser, createWeeklyWorkout, createWorkoutWeek, ensureWorkoutLogSheet, finishWeeklyWorkout, readPreviousWeeklyWorkoutSets, readPreviousWeekWorkoutSets, readWeeklyWorkoutCatalog, resumeWeeklyWorkout, sheetTabExists, upsertWorkoutSetLog, writeWeeklyWorkoutSet, writeWorkoutSet } from "../../../lib/google";
+import { accessTokenForUser, createWeeklyWorkout, createWorkoutWeek, ensureWorkoutLogSheet, finishWeeklyWorkout, readPreviousWeeklyWorkoutSets, readPreviousWeekWorkoutSets, readWeeklyWorkoutCatalog, resumeWeeklyWorkout, sheetTabExists, upsertWorkoutSetLog, writeWeeklyWorkoutDate, writeWeeklyWorkoutSet, writeWorkoutSet } from "../../../lib/google";
 
 type Payload = {
   action?: "start" | "set" | "finish";
@@ -57,11 +57,12 @@ export async function POST(request: Request) {
         const resumedDay = activeSession.workoutDay > 200 ? activeSession.workoutDay - 200 : activeSession.workoutDay > 100 ? activeSession.workoutDay - 100 : activeSession.workoutDay;
         const exerciseSets: Record<number, number[]> = { 1:[4,4,3,4,3,3,3], 2:[4,4,3,4,3], 3:[4,4,4,4,4,3,3], 4:[4,3,4,3,3] };
         const weeklySource=activeSession.workoutDay>200&&activeSession.sheetTab?await resumeWeeklyWorkout(accessToken,activeSession.sourceSheetId,activeSession.sheetTab,resumedDay):null;
+        if (weeklySource) await writeWeeklyWorkoutDate(accessToken,activeSession.sourceSheetId,activeSession.sheetTab!,new Date(activeSession.workoutDate));
         const previousSets = weeklySource ? await readPreviousWeeklyWorkoutSets(accessToken,weeklySource.workout) : activeSession.workoutDay <= 100 && activeSession.sheetTab
           ? await readPreviousWeekWorkoutSets(accessToken, activeSession.sourceSheetId, activeSession.sheetTab, exerciseSets[resumedDay] || []) : [];
         return Response.json({ sessionId:activeSession.id, workoutDay:activeSession.workoutDay, workoutDate:activeSession.workoutDate, sets:savedSets, previousSets, workout:weeklySource?.workout, resumed:true });
       }
-      const weeklyWorkout=isWeekly?await createWeeklyWorkout(accessToken,payload.day):null;
+      const weeklyWorkout=isWeekly?await createWeeklyWorkout(accessToken,payload.day,new Date(payload.date)):null;
       const workoutWeek = isGlute||isWeekly ? null : await createWorkoutWeek(accessToken, sourceSheetId, new Date(payload.date), exerciseSets[payload.day] || []);
       const sheetTab = isWeekly ? weeklyWorkout!.workout.sheetTab : isGlute ? await ensureWorkoutLogSheet(accessToken, sourceSheetId) : workoutWeek!.sheetTab;
       const sessionId = crypto.randomUUID();
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
         const resumedDay = session.workoutDay > 200 ? session.workoutDay - 200 : session.workoutDay > 100 ? session.workoutDay - 100 : session.workoutDay;
         const exerciseSets: Record<number, number[]> = { 1:[4,4,3,4,3,3,3], 2:[4,4,3,4,3], 3:[4,4,4,4,4,3,3], 4:[4,3,4,3,3] };
         sheetTab = session.workoutDay > 200
-          ? (await createWeeklyWorkout(accessToken,resumedDay)).workout.sheetTab
+          ? (await createWeeklyWorkout(accessToken,resumedDay,new Date(session.workoutDate))).workout.sheetTab
           : session.workoutDay > 100
           ? await ensureWorkoutLogSheet(accessToken, session.sourceSheetId)
           : (await createWorkoutWeek(accessToken, session.sourceSheetId, new Date(session.workoutDate), exerciseSets[resumedDay] || [])).sheetTab;

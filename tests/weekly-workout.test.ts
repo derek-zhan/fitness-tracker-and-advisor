@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseWeeklyWorkout, selectLatestWeek, selectWeeklyFile, youtubeEmbedUrl, type SheetCell } from "../lib/weekly-workout.ts";
+import { parseWeeklyWorkout, selectLatestWeek, selectWeeklyFile, workoutDateParts, youtubeEmbedUrl, type SheetCell } from "../lib/weekly-workout.ts";
 
 const value=(formattedValue:string,hyperlink?:string):SheetCell=>({formattedValue,...(hyperlink?{hyperlink}:{})});
 
@@ -54,4 +54,9 @@ test("matches exact weekday files and selects the highest numbered Week tab",()=
   assert.equal(selectWeeklyFile([{name:"Workout Tuesday"}],"Monday"),undefined);
   assert.throws(()=>selectWeeklyFile([{name:"Workout Monday"},{name:" workout monday "}],"Monday"),/Multiple matching sheets/);
   assert.equal(selectLatestWeek([{title:"Notes"},{title:"week 2"},{title:"Week 11"}])?.title,"Week 11");
+});
+
+test("formats the weekly workout start date in Toronto time",()=>{
+  assert.deepEqual(workoutDateParts(new Date("2026-09-06T01:30:00.000Z")),{month:"September",day:5,year:2026});
+  assert.throws(()=>workoutDateParts(new Date("invalid")),/Invalid workout date/);
 });
