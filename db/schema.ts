@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const workoutSessions = sqliteTable("workout_sessions", {
   id: text("id").primaryKey(),
@@ -7,25 +7,26 @@ export const workoutSessions = sqliteTable("workout_sessions", {
   sourceSheetId: text("source_sheet_id").notNull(),
   workoutDate: text("workout_date").notNull(),
   userId: text("user_id"),
+  deviceIdHash: text("device_id_hash"),
   sheetTab: text("sheet_tab"),
   status: text("status").notNull().default("active"),
   durationMinutes: integer("duration_minutes"),
   totalSets: integer("total_sets").notNull().default(0),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   completedAt: text("completed_at"),
-});
+}, (table) => [index("idx_workout_sessions_device_id_hash").on(table.deviceIdHash)]);
 
-export const googleConnections = sqliteTable("google_connections", {
-  userId: text("user_id").primaryKey(),
-  email: text("email"),
+export const googleConnections = sqliteTable("google_device_connections", {
+  deviceIdHash: text("device_id_hash").primaryKey(),
+  email: text("email").notNull(),
   encryptedRefreshToken: text("encrypted_refresh_token").notNull(),
   connectedAt: text("connected_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const googleOauthStates = sqliteTable("google_oauth_states", {
+export const googleOauthStates = sqliteTable("google_device_oauth_states", {
   state: text("state").primaryKey(),
-  userId: text("user_id").notNull(),
+  deviceIdHash: text("device_id_hash").notNull(),
   codeVerifier: text("code_verifier").notNull(),
   workoutDay: integer("workout_day").notNull(),
   expiresAt: integer("expires_at").notNull(),

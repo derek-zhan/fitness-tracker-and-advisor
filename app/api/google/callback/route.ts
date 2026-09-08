@@ -1,31 +1,41 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { googleConnections, googleOauthStates } from "../../../../db/schema";
+import { deviceCookie, deviceIdFromRequest, hashDeviceId, isGoogleEmailAllowed } from "../../../../lib/device-auth";
 import { encryptToken, googleClientId, googleClientSecret } from "../../../../lib/google";
+
+function redirect(url: URL, result: string, cookie?: string) {
+  const headers = new Headers({ location:`${url.origin}/?google=${result}` });
+  if (cookie) headers.set("set-cookie", cookie);
+  return new Response(null, { status:302, headers });
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const stateValue = url.searchParams.get("state");
   const code = url.searchParams.get("code");
-  if (!stateValue || !code) return Response.redirect(`${url.origin}/?google=denied`, 302);
+  const deviceId = deviceIdFromRequest(request);
+  if (!stateValue || !code || !deviceId) return redirect(url, "denied");
   const db = getDb();
   const [state] = await db.select().from(googleOauthStates).where(eq(googleOauthStates.state, stateValue)).limit(1);
-  if (!state || state.expiresAt < Date.now()) return Response.redirect(`${url.origin}/?google=expired`, 302);
+  if (!state || state.expiresAt < Date.now() || state.deviceIdHash !== await hashDeviceId(deviceId)) return redirect(url, "expired");
   await db.delete(googleOauthStates).where(eq(googleOauthStates.state, stateValue));
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ code, client_id: googleClientId(), client_secret: googleClientSecret(), redirect_uri: `${url.origin}/api/google/callback`, grant_type: "authorization_code", code_verifier: state.codeVerifier }),
+    method:"POST", headers:{ "content-type":"application/x-www-form-urlencoded" },
+    body:new URLSearchParams({ code, client_id:googleClientId(), client_secret:googleClientSecret(), redirect_uri:`${url.origin}/api/google/callback`, grant_type:"authorization_code", code_verifier:state.codeVerifier }),
   });
-  const tokens = await tokenResponse.json() as { access_token?: string; refresh_token?: string; error_description?: string };
-  if (!tokenResponse.ok || !tokens.refresh_token) return Response.redirect(`${url.origin}/?google=failed`, 302);
-  let email: string | null = null;
-  if (tokens.access_token) {
-    const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { authorization: `Bearer ${tokens.access_token}` } });
-    if (profileResponse.ok) email = ((await profileResponse.json()) as { email?: string }).email || null;
-  }
-  await db.insert(googleConnections).values({ userId: state.userId, email, encryptedRefreshToken: await encryptToken(tokens.refresh_token) }).onConflictDoUpdate({ target: googleConnections.userId, set: { email, encryptedRefreshToken: await encryptToken(tokens.refresh_token), updatedAt: new Date().toISOString() } });
-  const isWeekly = state.workoutDay > 200;
-  const isGlute = !isWeekly && state.workoutDay > 100;
-  const day = isWeekly ? state.workoutDay - 200 : isGlute ? state.workoutDay - 100 : state.workoutDay;
-  return Response.redirect(`${url.origin}/?google=connected&program=${isWeekly?"weekly7":isGlute?"glute6":"strength4"}&day=${day}`, 302);
+  const tokens = await tokenResponse.json() as { access_token?:string; refresh_token?:string };
+  if (!tokenResponse.ok || !tokens.refresh_token || !tokens.access_token) return redirect(url, "failed");
+  const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers:{ authorization:`Bearer ${tokens.access_token}` } });
+  if (!profileResponse.ok) return redirect(url, "failed");
+  const profile = await profileResponse.json() as { email?:string; email_verified?:boolean };
+  const email = profile.email?.trim().toLowerCase();
+  if (!email || profile.email_verified !== true || !isGoogleEmailAllowed(email)) return redirect(url, "not_allowed");
+  const encryptedRefreshToken = await encryptToken(tokens.refresh_token);
+  await db.insert(googleConnections).values({ deviceIdHash:state.deviceIdHash, email, encryptedRefreshToken }).onConflictDoUpdate({
+    target:googleConnections.deviceIdHash,
+    set:{ email, encryptedRefreshToken, updatedAt:new Date().toISOString() },
+  });
+  const day = Math.min(7, Math.max(1, state.workoutDay - 200));
+  return new Response(null, { status:302, headers:{ location:`${url.origin}/?google=connected&day=${day}`, "set-cookie":deviceCookie(deviceId, request.url) } });
 }

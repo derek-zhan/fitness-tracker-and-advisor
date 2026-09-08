@@ -15,6 +15,20 @@
       "when": 1787619711896,
       "tag": "0001_huge_jack_power",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788895499164,
+      "tag": "0002_shallow_next_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788895717698,
+      "tag": "0003_heavy_rockslide",
+      "breakpoints": true
     }
   ]
 }

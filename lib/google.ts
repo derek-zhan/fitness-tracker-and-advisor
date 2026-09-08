@@ -54,9 +54,11 @@ export async function pkceChallenge(verifier: string) {
 export function googleClientId() { return required("GOOGLE_CLIENT_ID"); }
 export function googleClientSecret() { return required("GOOGLE_CLIENT_SECRET"); }
 
-export async function accessTokenForUser(userId: string) {
+export class GoogleReauthorizationRequiredError extends Error {}
+
+export async function accessTokenForDevice(deviceIdHash: string) {
   const db = getDb();
-  const [connection] = await db.select().from(googleConnections).where(eq(googleConnections.userId, userId)).limit(1);
+  const [connection] = await db.select().from(googleConnections).where(eq(googleConnections.deviceIdHash, deviceIdHash)).limit(1);
   if (!connection) return null;
   const refreshToken = await decryptToken(connection.encryptedRefreshToken);
   const response = await fetch("https://oauth2.googleapis.com/token", {
@@ -65,7 +67,7 @@ export async function accessTokenForUser(userId: string) {
     body: new URLSearchParams({ client_id: googleClientId(), client_secret: googleClientSecret(), refresh_token: refreshToken, grant_type: "refresh_token" }),
   });
   const data = await response.json() as { access_token?: string; error_description?: string };
-  if (!response.ok || !data.access_token) throw new Error(data.error_description || "Google authorization expired");
+  if (!response.ok || !data.access_token) throw new GoogleReauthorizationRequiredError(data.error_description || "Google authorization expired");
   return data.access_token;
 }
 

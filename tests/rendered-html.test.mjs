@@ -8,15 +8,15 @@ async function render(path = "/") {
   return worker.fetch(new Request(`http://localhost${path}`, { headers:{ accept:"text/html" } }), { ASSETS:{ fetch:async()=>new Response("Not found",{status:404}) } }, { waitUntil(){}, passThroughOnException(){} });
 }
 
-test("server-renders all three workout program tabs", async () => {
+test("server-renders the Google-only per-device connection experience", async () => {
   const response=await render();
   assert.equal(response.status,200);
   const html=await response.text();
   assert.match(html,/<title>Forge — Guided Workout Log<\/title>/i);
-  assert.match(html,/>4 DAYS</);
-  assert.match(html,/>6 DAYS</);
-  assert.match(html,/>7 DAYS</);
-  assert.match(html,/From Sheets/);
+  assert.match(html,/Connect this device/);
+  assert.match(html,/Connect Google/);
+  assert.match(html,/YOUR LIVE 7-DAY PROGRAM/);
+  assert.doesNotMatch(html,/>4 DAYS|>6 DAYS|strength4|glute6/);
   assert.doesNotMatch(html,/Building your site/);
 });
 

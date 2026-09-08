@@ -19,16 +19,16 @@ export default function PrivacyPage() {
       <article className="legal-card">
         <p className="kicker">PRIVACY POLICY</p>
         <h1>Your workout data stays yours.</h1>
-        <p className="legal-updated">Effective September 5, 2026</p>
+        <p className="legal-updated">Effective September 8, 2026</p>
 
         <section>
           <h2>What Forge accesses</h2>
-          <p>When you connect Google, Forge requests your Google account email address, permission to view and update Google Sheets, and read-only access to spreadsheet file names in Google Drive. Forge uses Drive metadata only to find files named Workout Monday through Workout Sunday, then reads and updates those workout sheets when you use the seven-day program.</p>
+          <p>When you connect Google, Forge requests your verified Google account email address, permission to view and update Google Sheets, and read-only access to spreadsheet file names in Google Drive. Forge checks the email against a private access list, uses Drive metadata only to find files named Workout Monday through Workout Sunday, then reads and updates those workout sheets when you use the seven-day program.</p>
         </section>
 
         <section>
           <h2>What Forge stores</h2>
-          <p>Forge stores your Google account email address, an encrypted Google authorization token, the selected workout sheet ID, and workout-session information needed to keep your workout log in sync. Forge does not store a copy of your Google Drive file list or your Google password.</p>
+          <p>Forge stores your Google account email address, an encrypted Google authorization token, a one-way hash identifying this browser or device, the selected workout sheet ID, and workout-session information needed to keep your workout log in sync. The raw device identifier stays in a secure HttpOnly cookie. Forge does not store a copy of your Google Drive file list or your Google password.</p>
         </section>
 
         <section>
@@ -38,7 +38,7 @@ export default function PrivacyPage() {
 
         <section>
           <h2>Retention and deletion</h2>
-          <p>Connection and workout data is kept while you use Forge. You can revoke Forge’s access at any time from your Google Account permissions. To request deletion of Forge’s stored connection or workout data, contact the developer at <a href="mailto:zhanhangsky@gmail.com">zhanhangsky@gmail.com</a>.</p>
+          <p>Each browser or device connects separately. Using Disconnect removes that device’s stored Google connection. You can also revoke Forge’s access from your Google Account permissions. To request deletion of workout data, contact the developer at <a href="mailto:zhanhangsky@gmail.com">zhanhangsky@gmail.com</a>.</p>
         </section>
 
         <section>
