@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { isAllowedGoogleEmail, parseAllowedGoogleEmails } from "../lib/access-control.ts";
+import { isOwnerGoogleEmail, ownerWorkouts } from "../lib/owner-workouts.ts";
 
 test("allowlist is exact, case-insensitive, and fails closed", () => {
   assert.equal(isAllowedGoogleEmail("Owner@gmail.com", "owner@gmail.com"), true);
@@ -16,6 +17,16 @@ test("public client contains no personal sheet ids or browser-readable OAuth tok
   assert.doesNotMatch(source, /1CxsM|1oDeg|1xUr|1LO8|1wdtWB/);
   assert.doesNotMatch(source, /refreshToken|accessToken|encryptedRefreshToken/);
   assert.match(source, /forge-active-workout/);
+});
+
+test("personal four-day and six-day programs are restricted to the owner email", async () => {
+  assert.equal(isOwnerGoogleEmail("ZHANHANGSKY@gmail.com"), true);
+  assert.equal(isOwnerGoogleEmail("someone@gmail.com"), false);
+  assert.equal(ownerWorkouts.filter((workout) => workout.program === "strength4").length, 4);
+  assert.equal(ownerWorkouts.filter((workout) => workout.program === "glute6").length, 6);
+  const route = await readFile(new URL("../app/api/workouts/personal/route.ts", import.meta.url), "utf8");
+  assert.match(route, /isOwnerGoogleEmail\(identity\.connection\.email\)/);
+  assert.match(route, /status:403/);
 });
 
 test("device cookie remains server-only and OAuth state is device-bound", async () => {
