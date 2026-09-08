@@ -17,6 +17,7 @@ Forge turns that same information into a focused workout flow. Google Sheets sta
 ## What Forge does
 
 - Guides approved users through a live seven-day Google Sheets program.
+- Shows the private four-day strength and six-day glute programs only when the connected account is `zhanhangsky@gmail.com`; their Sheet IDs are delivered by an owner-guarded server endpoint and never embedded in the public client.
 - Finds `Workout Monday` through `Workout Sunday` in Google Drive and reads each latest `Week N` tab dynamically.
 - Starts sheet-driven sessions with the linked warm-up video, then shows each exercise’s linked YouTube demonstration and coaching cue.
 - Records reps and load with large, phone-friendly controls, then saves cardio completion and session notes.
