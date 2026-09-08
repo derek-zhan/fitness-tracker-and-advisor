@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const requestHeaders = await headers();
-  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
-  const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const image = `${protocol}://${host}/og.png`;
+  const image = "https://forge-workout-log.z-hangtian.chatgpt.site/og.png";
   const title = "Forge — Guided Workout Log";
-  const description = "A mobile-first guided workout log with strength, glute, and live seven-day Google Sheets programs.";
+  const description = "A mobile-first guided workout log powered by your live seven-day Google Sheets program.";
   return {
     title,
     description,
