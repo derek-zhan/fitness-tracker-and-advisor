@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { googleConnections } from "../db/schema";
-import { parseWeeklyWorkout, readPreviousWeeklySets, selectLatestWeek, selectWeeklyFile, WEEKDAYS, workoutDateParts, type SheetCell, type WeeklyCatalogDay, type WeeklyWorkout } from "./weekly-workout";
+import { nextWeeklyWorkoutTab, parseWeeklyWorkout, readPreviousWeeklySets, selectLatestWeek, selectWeeklyFile, WEEKDAYS, workoutDateParts, type SheetCell, type WeeklyCatalogDay, type WeeklyWorkout } from "./weekly-workout";
 
 const workerEnv = env as unknown as Record<string, string | undefined>;
 
@@ -178,10 +178,12 @@ export async function createWeeklyWorkout(accessToken:string,day:number,date:Dat
   const parsed=await parseWeeklyFile(accessToken,file,day);
   const current=latestWeek(parsed.metadata);
   if (!current) throw new Error("No Week tab found");
-  const title=`Week ${current.number+1}`;
-  await googleJson(`${sheetApi(file.id,":batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({requests:[{duplicateSheet:{sourceSheetId:current.sheetId,insertSheetIndex:current.index+1,newSheetName:title}}]})});
+  const title=nextWeeklyWorkoutTab(parsed.workout.sheetTab,parsed.workout.previousDate);
+  if (!title) throw new Error("The next Week tab could not be determined");
+  const reuseBlankWeekOne=title===current.title;
+  if (!reuseBlankWeekOne) await googleJson(`${sheetApi(file.id,":batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({requests:[{duplicateSheet:{sourceSheetId:current.sheetId,insertSheetIndex:current.index+1,newSheetName:title}}]})});
   await writeWeeklyWorkoutDate(accessToken,file.id,title,date);
-  const previousSets=readPreviousWeeklySets(parsed.workout,parsed.rows);
+  const previousSets=reuseBlankWeekOne?[]:readPreviousWeeklySets(parsed.workout,parsed.rows);
   const ranges=parsed.workout.exercises.map(exercise => `${quotedSheet(title)}!${parsed.workout.repsColumn}${exercise.sheetRow}:${parsed.workout.commentsColumn}${exercise.sheetRow+exercise.sets-1}`);
   ranges.push(`${quotedSheet(title)}!${parsed.workout.cardioStatusCell}`,`${quotedSheet(title)}!${parsed.workout.notesCell}`);
   await googleJson(`${sheetApi(file.id,"/values:batchClear")}`,accessToken,{method:"POST",body:JSON.stringify({ranges})});

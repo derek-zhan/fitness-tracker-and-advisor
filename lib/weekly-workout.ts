@@ -111,6 +111,10 @@ export function nextWeeklyTab(sheetTab:string) {
   return match?`Week ${Number(match[1])+1}`:undefined;
 }
 
+export function nextWeeklyWorkoutTab(sheetTab:string,previousDate?:string) {
+  return /^Week\s+1$/i.test(sheetTab.trim())&&!previousDate?"Week 1":nextWeeklyTab(sheetTab);
+}
+
 function cellText(cell?: SheetCell) {
   if (!cell) return "";
   if (cell.formattedValue !== undefined) return String(cell.formattedValue).trim();
@@ -261,6 +265,7 @@ export function parseWeeklyWorkout(args: {
   if (!cardioStatusCell) throw new Error("Cardio section not found");
   if (!notesCell) throw new Error("Notes section not found");
 
+  const previousDate=weeklyWorkoutDateLabel(rows);
   return {
     program: "weekly7" as const,
     day,
@@ -272,8 +277,8 @@ export function parseWeeklyWorkout(args: {
     sheetUrl,
     sheetTab,
     lastDate: sheetTab,
-    previousDate:weeklyWorkoutDateLabel(rows),
-    nextWeek:nextWeeklyTab(sheetTab),
+    previousDate,
+    nextWeek:nextWeeklyWorkoutTab(sheetTab,previousDate),
     warmupVideoUrl,
     exercises,
     cardio,
@@ -298,4 +303,13 @@ export function readPreviousWeeklySets(workout: WeeklyWorkout, rows: SheetCell[]
     }
   }
   return previous;
+}
+
+export function readRecordedWeeklySets(workout:WeeklyWorkout,rows:SheetCell[][]) {
+  return readPreviousWeeklySets(workout,rows).map(item=>({
+    exercise:workout.exercises[item.exerciseIndex].name,
+    setNumber:item.setNumber,
+    reps:item.reps,
+    load:item.load,
+  }));
 }
