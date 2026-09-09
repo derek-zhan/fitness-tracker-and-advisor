@@ -100,6 +100,12 @@ final class WorkoutStore: ObservableObject {
         advance()
     }
 
+    func capRest(to seconds: Int) {
+        // Only allow reducing the remaining rest time; ignore if already less or equal
+        guard seconds >= 0, restRemaining > seconds else { return }
+        restRemaining = seconds
+    }
+
     func reset() {
         restTask?.cancel()
         session = nil
