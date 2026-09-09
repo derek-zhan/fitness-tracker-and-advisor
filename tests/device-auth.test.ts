@@ -29,6 +29,12 @@ test("personal four-day and six-day programs are restricted to the owner email",
   assert.match(route, /status:403/);
 });
 
+test("personal workouts without weekday names use a numbered day label", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /function workoutDayLabel\(workout:Workout\)\{return workout\.dayName\|\|`Day \$\{workout\.day\}`\}/);
+  assert.doesNotMatch(source, /workout\.dayName\.toUpperCase\(\)/);
+});
+
 test("device cookie remains server-only and OAuth state is device-bound", async () => {
   const deviceAuth = await readFile(new URL("../lib/device-auth.ts", import.meta.url), "utf8");
   const authorize = await readFile(new URL("../app/api/google/authorize/route.ts", import.meta.url), "utf8");
