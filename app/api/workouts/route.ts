@@ -4,6 +4,7 @@ import { workoutSessions, workoutSets } from "../../../db/schema";
 import { allowedConnectionForRequest } from "../../../lib/device-auth";
 import { accessTokenForDevice, createWeeklyWorkout, createWorkoutWeek, ensureWorkoutLogSheet, finishWeeklyWorkout, GoogleReauthorizationRequiredError, readPreviousWeeklyWorkoutSets, readPreviousWeekWorkoutSets, readWeeklyWorkoutCatalog, resumeWeeklyWorkout, sheetTabExists, upsertWorkoutSetLog, writeWeeklyWorkoutDate, writeWeeklyWorkoutSet, writeWorkoutSet } from "../../../lib/google";
 import { isOwnerGoogleEmail, ownerWorkoutFor } from "../../../lib/owner-workouts";
+import { readRecordedWeeklySets } from "../../../lib/weekly-workout";
 
 type Payload = {
   action?: "start" | "set" | "finish";
@@ -61,9 +62,9 @@ export async function POST(request: Request) {
         activeSession=undefined;
       }
       if (activeSession) {
-        const savedSets = await db.select({ exercise:workoutSets.exercise, setNumber:workoutSets.setNumber, reps:workoutSets.reps, load:workoutSets.load }).from(workoutSets).where(eq(workoutSets.sessionId,activeSession.id)).orderBy(workoutSets.id);
         const resumedDay=activeSession.workoutDay>200?activeSession.workoutDay-200:activeSession.workoutDay>100?activeSession.workoutDay-100:activeSession.workoutDay;
         const weeklySource=activeSession.workoutDay>200?await resumeWeeklyWorkout(accessToken,activeSession.sourceSheetId,activeSession.sheetTab!,resumedDay):null;
+        const savedSets=weeklySource?readRecordedWeeklySets(weeklySource.workout,weeklySource.rows):await db.select({ exercise:workoutSets.exercise, setNumber:workoutSets.setNumber, reps:workoutSets.reps, load:workoutSets.load }).from(workoutSets).where(eq(workoutSets.sessionId,activeSession.id)).orderBy(workoutSets.id);
         if(weeklySource)await writeWeeklyWorkoutDate(accessToken,activeSession.sourceSheetId,activeSession.sheetTab!,new Date(activeSession.workoutDate));
         const previousSets=weeklySource?await readPreviousWeeklyWorkoutSets(accessToken,weeklySource.workout):activeSession.workoutDay<=100?await readPreviousWeekWorkoutSets(accessToken,activeSession.sourceSheetId,activeSession.sheetTab!,exerciseSets[resumedDay]||[]):[];
         return Response.json({sessionId:activeSession.id,workoutDay:activeSession.workoutDay,workoutDate:activeSession.workoutDate,sets:savedSets,previousSets,workout:weeklySource?.workout,resumed:true});

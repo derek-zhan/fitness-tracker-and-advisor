@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { attachWeeklyContinuations, foundWeeklyDays, nextWeeklyTab, parseWeeklyWorkout, selectLatestWeek, selectWeeklyFile, weeklyWorkoutDateLabel, workoutDateParts, youtubeEmbedUrl, type SheetCell, type WeeklyCatalogDay } from "../lib/weekly-workout.ts";
+import { attachWeeklyContinuations, foundWeeklyDays, nextWeeklyTab, nextWeeklyWorkoutTab, parseWeeklyWorkout, readRecordedWeeklySets, selectLatestWeek, selectWeeklyFile, weeklyWorkoutDateLabel, workoutDateParts, youtubeEmbedUrl, type SheetCell, type WeeklyCatalogDay } from "../lib/weekly-workout.ts";
 
 const value=(formattedValue:string,hyperlink?:string):SheetCell=>({formattedValue,...(hyperlink?{hyperlink}:{})});
 
@@ -72,6 +72,26 @@ test("shows the next Week tab that will be created",()=>{
   assert.equal(nextWeeklyTab("Week 2"),"Week 3");
   assert.equal(nextWeeklyTab("week 11"),"Week 12");
   assert.equal(nextWeeklyTab("Workout Log"),undefined);
+  assert.equal(nextWeeklyWorkoutTab("Week 1"),"Week 1");
+  assert.equal(nextWeeklyWorkoutTab("Week 1","Sep 5, 2026"),"Week 2");
+});
+
+test("loads sets already recorded in the active weekly sheet",()=>{
+  const rows:SheetCell[][]=[
+    [],
+    [value(""),value(""),value(""),value(""),value(""),value("September"),value(""),value("5"),value("2026")],
+    [value(""),value("Order"),value("Exercise"),value("Quick Cues"),value("Volume"),value("Reps"),value("Load"),value("Comments"),value("Rest")],
+    [value(""),value("A1"),value("Dumbbell Press"),value("Control"),value("2 x 8 - 10"),value("10"),value("50"),value(""),value("90s")],
+    [value(""),value(""),value(""),value(""),value(""),value("9"),value("55")],
+    [value(""),value("Cardio")],
+    [value(""),value("10 min walk")],
+    [value(""),value("Notes / Observations")],
+  ];
+  const workout=parseWeeklyWorkout({day:1,dayName:"Monday",sheetId:"sheet",sheetUrl:"https://example.com",sheetTab:"Week 1",rows});
+  assert.deepEqual(readRecordedWeeklySets(workout,rows),[
+    {exercise:"Dumbbell Press",setNumber:1,reps:10,load:50},
+    {exercise:"Dumbbell Press",setNumber:2,reps:9,load:55},
+  ]);
 });
 
 test("shows only weekly sheets that were found and parsed",()=>{
