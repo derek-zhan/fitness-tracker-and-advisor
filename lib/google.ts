@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { googleConnections } from "../db/schema";
 import { nextWeeklyWorkoutTab, parseWeeklyWorkout, readPreviousWeeklySets, selectLatestWeek, selectWeeklyFile, WEEKDAYS, workoutDateParts, type SheetCell, type WeeklyCatalogDay, type WeeklyWorkout } from "./weekly-workout";
+import { hasWeightRecordForDate, selectWeightCheckInFile, WEIGHT_CHECK_IN_SPREADSHEET, WEIGHT_CHECK_IN_TAB } from "./weight-check-in";
 
 const workerEnv = env as unknown as Record<string, string | undefined>;
 
@@ -86,6 +87,57 @@ function quotedSheet(sheetTab: string) {
 }
 
 type WeeklyFile = { id:string; name:string; webViewLink?:string };
+
+export class WeightAlreadyCheckedInError extends Error {}
+
+async function weightCheckInFile(accessToken:string) {
+  const query=`mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and name = '${WEIGHT_CHECK_IN_SPREADSHEET}'`;
+  const params=new URLSearchParams({q:query,fields:"files(id,name)",pageSize:"10"});
+  const data=await googleJson(`https://www.googleapis.com/drive/v3/files?${params.toString()}`,accessToken) as {files?:Array<{id:string;name:string}>};
+  return selectWeightCheckInFile(data.files||[]);
+}
+
+async function weightTabExists(accessToken:string,spreadsheetId:string) {
+  const metadata=await googleJson(`${sheetApi(spreadsheetId)}?fields=sheets.properties.title`,accessToken) as {sheets?:Array<{properties?:{title?:string}}>};
+  return (metadata.sheets||[]).some(sheet=>sheet.properties?.title===WEIGHT_CHECK_IN_TAB);
+}
+
+async function readWeightRows(accessToken:string,spreadsheetId:string) {
+  const range=encodeURIComponent(`${quotedSheet(WEIGHT_CHECK_IN_TAB)}!A2:B`);
+  const data=await googleJson(`${sheetApi(spreadsheetId,`/values/${range}`)}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`,accessToken) as {values?:unknown[][]};
+  return data.values||[];
+}
+
+async function initializeWeightTab(accessToken:string,spreadsheetId:string) {
+  const exists=await weightTabExists(accessToken,spreadsheetId);
+  if (!exists) {
+    await googleJson(`${sheetApi(spreadsheetId,":batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({requests:[{addSheet:{properties:{title:WEIGHT_CHECK_IN_TAB,gridProperties:{frozenRowCount:1}}}}]})});
+    await googleJson(`${sheetApi(spreadsheetId,"/values:batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({valueInputOption:"USER_ENTERED",data:[{range:`${quotedSheet(WEIGHT_CHECK_IN_TAB)}!A1:B1`,values:[["Date","Weight (lb)"]]}]})});
+    return;
+  }
+  const headerRange=encodeURIComponent(`${quotedSheet(WEIGHT_CHECK_IN_TAB)}!A1:B1`);
+  const header=await googleJson(`${sheetApi(spreadsheetId,`/values/${headerRange}`)}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`,accessToken) as {values?:unknown[][]};
+  if (!(header.values||[]).flat().some(value=>String(value??"").trim())) {
+    await googleJson(`${sheetApi(spreadsheetId,"/values:batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({valueInputOption:"USER_ENTERED",data:[{range:`${quotedSheet(WEIGHT_CHECK_IN_TAB)}!A1:B1`,values:[["Date","Weight (lb)"]]}]})});
+  }
+}
+
+export async function readWeightCheckInStatus(accessToken:string,date:string) {
+  const file=await weightCheckInFile(accessToken);
+  if (!await weightTabExists(accessToken,file.id)) return {date,needsCheckIn:true};
+  const rows=await readWeightRows(accessToken,file.id);
+  return {date,needsCheckIn:!hasWeightRecordForDate(rows,date)};
+}
+
+export async function saveWeightCheckIn(accessToken:string,date:string,weight:number) {
+  const file=await weightCheckInFile(accessToken);
+  await initializeWeightTab(accessToken,file.id);
+  const rows=await readWeightRows(accessToken,file.id);
+  if (hasWeightRecordForDate(rows,date)) throw new WeightAlreadyCheckedInError("Today's weight is already saved");
+  const range=encodeURIComponent(`${quotedSheet(WEIGHT_CHECK_IN_TAB)}!A:B`);
+  await googleJson(`${sheetApi(file.id,`/values/${range}:append`)}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,accessToken,{method:"POST",body:JSON.stringify({values:[[date,weight]]})});
+  return {date,weight};
+}
 
 export async function listWeeklyWorkoutFiles(accessToken:string) {
   const query = "mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and name contains 'Workout'";
