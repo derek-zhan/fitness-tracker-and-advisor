@@ -4,6 +4,7 @@ import { getDb } from "../db";
 import { googleConnections } from "../db/schema";
 import { nextWeeklyWorkoutTab, parseWeeklyWorkout, readPreviousWeeklySets, selectLatestWeek, selectWeeklyFile, WEEKDAYS, workoutDateParts, type SheetCell, type WeeklyCatalogDay, type WeeklyWorkout } from "./weekly-workout";
 import { hasWeightRecordForDate, selectWeightCheckInFile, WEIGHT_CHECK_IN_SPREADSHEET, WEIGHT_CHECK_IN_TAB } from "./weight-check-in";
+import { answersForRow, buildCheckInRow, CHECK_IN_TAB, checkInQuestions, checkInRowForDate, CheckInAlreadyCompletedError, CheckInSourceError, nextCheckInWeek, previousCheckInDate, validateCheckInAnswers, weightProgress, weekNumber, type CheckInAnswer, type CheckInExperience } from "./check-in";
 
 const workerEnv = env as unknown as Record<string, string | undefined>;
 
@@ -137,6 +138,68 @@ export async function saveWeightCheckIn(accessToken:string,date:string,weight:nu
   const range=encodeURIComponent(`${quotedSheet(WEIGHT_CHECK_IN_TAB)}!A:B`);
   await googleJson(`${sheetApi(file.id,`/values/${range}:append`)}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,accessToken,{method:"POST",body:JSON.stringify({values:[[date,weight]]})});
   return {date,weight};
+}
+
+function columnName(index:number) {
+  let value=index+1;
+  let name="";
+  while (value>0) {
+    const remainder=(value-1)%26;
+    name=String.fromCharCode(65+remainder)+name;
+    value=Math.floor((value-1)/26);
+  }
+  return name;
+}
+
+async function checkInWorkbookRows(accessToken:string) {
+  const file=await weightCheckInFile(accessToken);
+  const metadata=await googleJson(`${sheetApi(file.id)}?fields=sheets.properties(sheetId,title,gridProperties(rowCount,columnCount))`,accessToken) as {sheets?:Array<{properties?:{sheetId?:number;title?:string;gridProperties?:{rowCount?:number;columnCount?:number}}}>};
+  const checkIn=metadata.sheets?.find(sheet=>sheet.properties?.title===CHECK_IN_TAB)?.properties;
+  if (!checkIn) throw new CheckInSourceError(`${CHECK_IN_TAB} sheet was not found`,"check_in_tab_not_found");
+  const lastColumn=columnName(Math.max(1,(checkIn.gridProperties?.columnCount||26)-1));
+  const lastRow=Math.max(2,checkIn.gridProperties?.rowCount||1000);
+  const checkInRange=encodeURIComponent(`${quotedSheet(CHECK_IN_TAB)}!A1:${lastColumn}${lastRow}`);
+  const checkInData=await googleJson(`${sheetApi(file.id,`/values/${checkInRange}`)}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`,accessToken) as {values?:unknown[][]};
+  const weight=metadata.sheets?.find(sheet=>sheet.properties?.title===WEIGHT_CHECK_IN_TAB)?.properties;
+  let weightRows:unknown[][]=[];
+  if (weight) {
+    const weightLastRow=Math.max(2,weight.gridProperties?.rowCount||1000);
+    const weightRange=encodeURIComponent(`${quotedSheet(WEIGHT_CHECK_IN_TAB)}!A2:B${weightLastRow}`);
+    const weightData=await googleJson(`${sheetApi(file.id,`/values/${weightRange}`)}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`,accessToken) as {values?:unknown[][]};
+    weightRows=weightData.values||[];
+  }
+  const [headers=[],...rows]=checkInData.values||[];
+  return {file,headers,rows,weightRows,checkInSheetId:checkIn.sheetId};
+}
+
+export async function readCheckInExperience(accessToken:string,date:string):Promise<CheckInExperience> {
+  const {file,headers,rows,weightRows,checkInSheetId}=await checkInWorkbookRows(accessToken);
+  const questions=checkInQuestions(headers);
+  const currentRow=checkInRowForDate(rows,date);
+  const previousDate=previousCheckInDate(rows,date);
+  const currentWeek=weekNumber(currentRow?.[1]);
+  return {
+    date,
+    previousDate,
+    weekNumber:currentWeek??nextCheckInWeek(rows),
+    completed:Boolean(currentRow),
+    questions,
+    answers:answersForRow(questions,currentRow),
+    weightProgress:weightProgress(weightRows,previousDate,date),
+    sheetUrl:`https://docs.google.com/spreadsheets/d/${file.id}/edit#gid=${checkInSheetId??0}`,
+  };
+}
+
+export async function saveCheckIn(accessToken:string,date:string,submittedAnswers:CheckInAnswer[]) {
+  const {file,headers,rows}=await checkInWorkbookRows(accessToken);
+  if (checkInRowForDate(rows,date)) throw new CheckInAlreadyCompletedError("Today's check-in is already complete");
+  const questions=checkInQuestions(headers);
+  const answers=validateCheckInAnswers(questions,submittedAnswers);
+  const week=nextCheckInWeek(rows);
+  const values=buildCheckInRow(headers,date,week,answers);
+  const range=encodeURIComponent(`${quotedSheet(CHECK_IN_TAB)}!A:${columnName(Math.max(1,headers.length-1))}`);
+  await googleJson(`${sheetApi(file.id,`/values/${range}:append`)}?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,accessToken,{method:"POST",body:JSON.stringify({values:[values]})});
+  return readCheckInExperience(accessToken,date);
 }
 
 export async function listWeeklyWorkoutFiles(accessToken:string) {
