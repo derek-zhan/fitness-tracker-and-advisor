@@ -14,6 +14,7 @@ type WorkoutStage = "warmup" | "exercise" | "finish";
 type WorkoutDraft = { sessionId:string; programId:ProgramId; selectedDay:number; exerciseIndex:number; setNumber:number; reps:number; load:number; logs:SetLog[]; previousSets:PreviousSet[]; startedAt:number; stage:WorkoutStage; cardioCompleted:boolean; notes:string };
 type View = "home" | "workout" | "summary";
 type AuthState = "checking" | "disconnected" | "connected" | "unauthorized" | "reauthorization_required";
+type WeightCheckInState = "hidden" | "loading" | "ready" | "saving";
 
 const workoutDraftKey="forge-active-workout";
 
@@ -60,9 +61,18 @@ export default function Home(){
   const [stage,setStage]=useState<WorkoutStage>("exercise");
   const [cardioCompleted,setCardioCompleted]=useState(false);
   const [notes,setNotes]=useState("");
+  const [weightCheckInState,setWeightCheckInState]=useState<WeightCheckInState>("hidden");
+  const [weightDialogOpen,setWeightDialogOpen]=useState(false);
+  const [weightValue,setWeightValue]=useState("");
+  const [weightError,setWeightError]=useState("");
+  const [previewMode,setPreviewMode]=useState(false);
   const timer=useRef<ReturnType<typeof setInterval>|null>(null);
   const restEndsAt=useRef(0);
   const restAlerted=useRef(false);
+  const weightTrigger=useRef<HTMLButtonElement|null>(null);
+  const weightInput=useRef<HTMLInputElement|null>(null);
+  const weightDialog=useRef<HTMLDivElement|null>(null);
+  const weightSaving=useRef(false);
   const visibleWeeklyDays=useMemo(()=>foundWeeklyDays(weeklyDays),[weeklyDays]);
   const workouts=useMemo(()=>visibleWeeklyDays.flatMap(item=>item.workout?[item.workout as Workout]:[]),[visibleWeeklyDays]);
   const selectedWeeklyDay=visibleWeeklyDays.find(item=>item.day===selectedDay);
@@ -86,15 +96,44 @@ export default function Home(){
         setGoogleEmail(data.email||"Google connected");
         if(loadAfter||weeklyState!=="ready")await loadWeeklyCatalog()
       }
-      else{setGoogleEmail("");setWeeklyState("connect");if(next==="unauthorized")setNotice("This Google account is not authorized to use Forge.");if(next==="reauthorization_required")setNotice("Reconnect Google to continue.")}
-    }catch{setAuthState("disconnected");setWeeklyState("connect")}
+      else{setGoogleEmail("");setWeightCheckInState("hidden");setWeeklyState("connect");if(next==="unauthorized")setNotice("This Google account is not authorized to use Forge.");if(next==="reauthorization_required")setNotice("Reconnect Google to continue.")}
+    }catch{setAuthState("disconnected");setWeightCheckInState("hidden");setWeeklyState("connect")}
+  }
+
+  async function refreshWeightCheckIn(){
+    setWeightCheckInState("loading");
+    try{
+      const response=await fetch("/api/weight-check-in",{cache:"no-store"});
+      const data=await response.json() as {needsCheckIn?:boolean;error?:string;code?:string};
+      if(!response.ok){setWeightCheckInState("hidden");if(data.code!=="google_auth_required"&&data.code!=="google_reauthorize_required")setNotice(data.error||"Weight check-in could not be loaded");return}
+      setWeightCheckInState(data.needsCheckIn?"ready":"hidden");
+    }catch{setWeightCheckInState("hidden");setNotice("Weight check-in could not be loaded")}
   }
 
   async function loadWeeklyCatalog(){setWeeklyState("loading");try{const response=await fetch("/api/workouts/weekly",{cache:"no-store"});const data=await response.json() as {days?:WeeklyCatalogDay[];error?:string;code?:string};if(!response.ok){if(data.code==="google_auth_required"||data.code==="google_reauthorize_required"){setWeeklyState("connect");return}throw new Error(data.error||"Weekday workouts could not be loaded")}const days=data.days||[];const found=foundWeeklyDays(days);setWeeklyDays(days);setSelectedDay(current=>found.some(item=>item.day===current)?current:found[0]?.day||1);if(!found.length)setNotice("No Workout Monday through Workout Sunday sheets were found in this Google Drive.");setWeeklyState("ready")}catch(error){setWeeklyState("error");setNotice(error instanceof Error?error.message:"Weekday workouts could not be loaded")}}
   // OAuth return and device status are intentionally handled once on mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{const timeout=window.setTimeout(()=>{const params=new URLSearchParams(window.location.search);if(process.env.NODE_ENV==="development"&&params.get("preview")==="weekly7"){setWeeklyDays(localWeeklyPreview);setWeeklyState("ready");setAuthState("connected");return}const result=params.get("google");if(result){window.history.replaceState({},"","/");if(result==="not_allowed")setNotice("This Google account is not authorized to use Forge.");else if(result!=="connected")setNotice("Google connection was not completed. Please try again.")}void refreshConnection(result==="connected")},0);return()=>window.clearTimeout(timeout)},[]);
-  async function disconnect(){await fetch("/api/google/disconnect",{method:"POST"});localStorage.removeItem(workoutDraftKey);setGoogleEmail("");setWeeklyDays(WEEKDAYS.map((dayName,index)=>({day:index+1,dayName,available:false,error:"Connect Google to load"})));setWeeklyState("connect");setAuthState("disconnected");setView("home");setNotice("Google disconnected from this device.")}
+  useEffect(()=>{const timeout=window.setTimeout(()=>{const params=new URLSearchParams(window.location.search);if(process.env.NODE_ENV==="development"&&params.get("preview")==="weekly7"){setPreviewMode(true);setWeeklyDays(localWeeklyPreview);setWeeklyState("ready");setWeightCheckInState("ready");setAuthState("connected");return}const result=params.get("google");if(result){window.history.replaceState({},"","/");if(result==="not_allowed")setNotice("This Google account is not authorized to use Forge.");else if(result!=="connected")setNotice("Google connection was not completed. Please try again.")}void refreshConnection(result==="connected")},0);return()=>window.clearTimeout(timeout)},[]);
+  // Refresh the daily shortcut whenever the connected home screen becomes active again.
+  useEffect(()=>{if(authState!=="connected"||view!=="home"||previewMode)return;const refresh=()=>{void refreshWeightCheckIn()};refresh();window.addEventListener("focus",refresh);window.addEventListener("pageshow",refresh);return()=>{window.removeEventListener("focus",refresh);window.removeEventListener("pageshow",refresh)}},[authState,view,previewMode]);
+  useEffect(()=>{if(!weightDialogOpen)return;const previouslyFocused=document.activeElement instanceof HTMLElement?document.activeElement:null;const focusTimer=window.setTimeout(()=>weightInput.current?.focus(),0);const onKeyDown=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();if(!weightSaving.current)setWeightDialogOpen(false);return}if(event.key!=="Tab"||!weightDialog.current)return;const controls=[...weightDialog.current.querySelectorAll<HTMLElement>('input,button:not([disabled])')];if(!controls.length)return;const first=controls[0];const last=controls[controls.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}};document.addEventListener("keydown",onKeyDown);return()=>{window.clearTimeout(focusTimer);document.removeEventListener("keydown",onKeyDown);previouslyFocused?.focus()}},[weightDialogOpen]);
+  async function disconnect(){await fetch("/api/google/disconnect",{method:"POST"});localStorage.removeItem(workoutDraftKey);setGoogleEmail("");setWeightDialogOpen(false);setWeightCheckInState("hidden");setWeeklyDays(WEEKDAYS.map((dayName,index)=>({day:index+1,dayName,available:false,error:"Connect Google to load"})));setWeeklyState("connect");setAuthState("disconnected");setView("home");setNotice("Google disconnected from this device.")}
+  function openWeightCheckIn(){setWeightValue("");setWeightError("");setWeightDialogOpen(true)}
+  function closeWeightCheckIn(){if(!weightSaving.current)setWeightDialogOpen(false)}
+  async function submitWeightCheckIn(event:React.FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    const weight=Number(weightValue);
+    if(!weightValue.trim()||!Number.isFinite(weight)||weight<=0){setWeightError("Enter a weight greater than zero.");weightInput.current?.focus();return}
+    setWeightError("");weightSaving.current=true;setWeightCheckInState("saving");
+    if(previewMode){weightSaving.current=false;setWeightCheckInState("hidden");setWeightDialogOpen(false);setNotice(`Weight check-in saved: ${weight} lb.`);return}
+    try{
+      const response=await fetch("/api/weight-check-in",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({weight})});
+      const data=await response.json() as {error?:string;code?:string};
+      if(!response.ok){if(response.status===409&&data.code==="weight_already_checked_in"){setWeightCheckInState("hidden");setWeightDialogOpen(false);setNotice("Today's weight is already saved.");return}throw new Error(data.error||"Weight was not saved")}
+      setWeightCheckInState("hidden");setWeightDialogOpen(false);setNotice(`Weight check-in saved: ${weight} lb.`);
+    }catch(error){setWeightCheckInState("ready");setWeightError(error instanceof Error?error.message:"Weight was not saved")}
+    finally{weightSaving.current=false}
+  }
   function startRest(seconds:number){restEndsAt.current=currentTime()+seconds*1000;restAlerted.current=false;setRestTarget(seconds);setRestLeft(seconds);setResting(true)}
   function goToFinish(){setResting(false);setStage("finish")}
   async function startWorkoutForDay(day:number,mode:"new"|"continue"="new"){
@@ -121,7 +160,8 @@ export default function Home(){
   const currentVolume=logs.reduce((sum,item)=>sum+item.load*item.reps,0);const baselineVolume=logs.reduce((sum,item)=>sum+item.baselineLoad*item.reps,0);const volumeChange=baselineVolume?Math.round((currentVolume-baselineVolume)/baselineVolume*100):0;const exerciseVideo=exercise?youtubeEmbedUrl(exercise.videoUrl):undefined;const warmupVideo=workout?youtubeEmbedUrl(workout.warmupVideoUrl):undefined;
 
   return <main className={`site-shell view-${view} program-${programId}`}>
-    <header className="app-header"><button className="wordmark" onClick={()=>setView("home")} aria-label="Go to workout home"><span className="mark" aria-hidden="true"/><span>FORGE</span></button>{view==="workout"?<div className="session-progress"><span>{logs.length}/{totalSets} SETS</span><i><b style={{width:`${progress}%`}}/></i></div>:<span className="week-pill">WEEK OF {weekLabel().toUpperCase()}</span>}{workout&&<a className="sheet-button" href={workout.sheetUrl} target="_blank" rel="noreferrer"><span className="sheet-grid">▦</span><span className="sheet-text">Open sheet</span></a>}</header>
+    <header className="app-header"><button className="wordmark" onClick={()=>setView("home")} aria-label="Go to workout home"><span className="mark" aria-hidden="true"/><span>FORGE</span></button>{view==="workout"?<div className="session-progress"><span>{logs.length}/{totalSets} SETS</span><i><b style={{width:`${progress}%`}}/></i></div>:<span className="week-pill">WEEK OF {weekLabel().toUpperCase()}</span>}<div className="header-actions">{view==="home"&&weightCheckInState==="ready"&&<button ref={weightTrigger} type="button" className="weight-checkin-button" onClick={openWeightCheckIn}><span aria-hidden="true">⚖️</span><b>Weight Check-in</b></button>}{workout&&<a className="sheet-button" href={workout.sheetUrl} target="_blank" rel="noreferrer"><span className="sheet-grid">▦</span><span className="sheet-text">Open sheet</span></a>}</div></header>
+    {weightDialogOpen&&<div className="weight-modal-backdrop"><button type="button" className="weight-modal-dismiss" aria-label="Close weight check-in" onClick={closeWeightCheckIn}/><div ref={weightDialog} className="weight-modal" role="dialog" aria-modal="true" aria-labelledby="weight-modal-title" aria-describedby="weight-modal-description"><form onSubmit={submitWeightCheckIn}><span className="weight-modal-emoji" aria-hidden="true">⚖️</span><p className="kicker">TODAY&apos;S CHECK-IN</p><h2 id="weight-modal-title">Log your weight</h2><p id="weight-modal-description">Add today’s weight to your Workout Check-in sheet.</p><label htmlFor="weight-value">Weight <small>lb</small></label><input ref={weightInput} id="weight-value" name="weight" type="number" inputMode="decimal" min="0.1" step="0.1" value={weightValue} onChange={event=>setWeightValue(event.target.value)} aria-invalid={Boolean(weightError)} aria-describedby={weightError?"weight-error":undefined} disabled={weightCheckInState==="saving"}/>{weightError&&<p id="weight-error" className="weight-error" role="alert">{weightError}</p>}<div className="weight-modal-actions"><button type="button" className="weight-cancel" onClick={closeWeightCheckIn} disabled={weightCheckInState==="saving"}>Cancel</button><button type="submit" className="weight-save" disabled={weightCheckInState==="saving"}>{weightCheckInState==="saving"?"Saving…":"Save weight"}</button></div></form></div></div>}
     {view!=="home"&&notice&&<div className="notice" role="alert">{notice}</div>}
     {view==="home"&&<section className="home-view">
       <div className="hero-copy-block"><div><p className="kicker">YOUR LIVE 7-DAY PROGRAM</p><h1>Your week.<br/><span>Always current.</span></h1></div><p className="intro">Every day is read directly from your Google Sheet, including warm-up, exercise videos, cardio, and notes.</p></div>
