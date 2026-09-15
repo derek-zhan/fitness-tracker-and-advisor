@@ -5,6 +5,7 @@ import { googleConnections } from "../db/schema";
 import { nextWeeklyWorkoutTab, parseWeeklyWorkout, readPreviousWeeklySets, selectLatestWeek, selectWeeklyFile, WEEKDAYS, workoutDateParts, type SheetCell, type WeeklyCatalogDay, type WeeklyWorkout } from "./weekly-workout";
 import { hasWeightRecordForDate, selectWeightCheckInFile, WEIGHT_CHECK_IN_SPREADSHEET, WEIGHT_CHECK_IN_TAB } from "./weight-check-in";
 import { answersForRow, buildCheckInRow, CHECK_IN_TAB, checkInQuestions, checkInRowForDate, CheckInAlreadyCompletedError, CheckInSourceError, nextCheckInWeek, previousCheckInDate, validateCheckInAnswers, weightProgress, weekNumber, type CheckInAnswer, type CheckInExperience } from "./check-in";
+import { forgeFolderQuery, queryInsideFolder, selectForgeFolder } from "./google-drive";
 
 const workerEnv = env as unknown as Record<string, string | undefined>;
 
@@ -91,8 +92,15 @@ type WeeklyFile = { id:string; name:string; webViewLink?:string };
 
 export class WeightAlreadyCheckedInError extends Error {}
 
+async function forgeDriveFolderId(accessToken:string) {
+  const params=new URLSearchParams({q:forgeFolderQuery(),fields:"files(id,name)",pageSize:"10"});
+  const data=await googleJson(`https://www.googleapis.com/drive/v3/files?${params.toString()}`,accessToken) as {files?:Array<{id:string;name:string}>};
+  return selectForgeFolder(data.files||[]).id;
+}
+
 async function weightCheckInFile(accessToken:string) {
-  const query=`mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and name = '${WEIGHT_CHECK_IN_SPREADSHEET}'`;
+  const folderId=await forgeDriveFolderId(accessToken);
+  const query=queryInsideFolder(folderId,`mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and name = '${WEIGHT_CHECK_IN_SPREADSHEET}'`);
   const params=new URLSearchParams({q:query,fields:"files(id,name)",pageSize:"10"});
   const data=await googleJson(`https://www.googleapis.com/drive/v3/files?${params.toString()}`,accessToken) as {files?:Array<{id:string;name:string}>};
   return selectWeightCheckInFile(data.files||[]);
@@ -203,7 +211,8 @@ export async function saveCheckIn(accessToken:string,date:string,submittedAnswer
 }
 
 export async function listWeeklyWorkoutFiles(accessToken:string) {
-  const query = "mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and name contains 'Workout'";
+  const folderId=await forgeDriveFolderId(accessToken);
+  const query = queryInsideFolder(folderId,"mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false and name contains 'Workout'");
   const params = new URLSearchParams({ q:query, fields:"files(id,name,webViewLink,modifiedTime)", pageSize:"100", orderBy:"modifiedTime desc" });
   const data = await googleJson(`https://www.googleapis.com/drive/v3/files?${params.toString()}`,accessToken) as {files?:WeeklyFile[]};
   return data.files || [];
