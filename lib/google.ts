@@ -93,8 +93,8 @@ type WeeklyFile = { id:string; name:string; webViewLink?:string };
 export class WeightAlreadyCheckedInError extends Error {}
 
 async function forgeDriveFolderId(accessToken:string) {
-  const params=new URLSearchParams({q:forgeFolderQuery(),fields:"files(id,name)",pageSize:"10"});
-  const data=await googleJson(`https://www.googleapis.com/drive/v3/files?${params.toString()}`,accessToken) as {files?:Array<{id:string;name:string}>};
+  const params=new URLSearchParams({q:forgeFolderQuery(),fields:"files(id,name,mimeType,shortcutDetails(targetId,targetMimeType))",pageSize:"10"});
+  const data=await googleJson(`https://www.googleapis.com/drive/v3/files?${params.toString()}`,accessToken) as {files?:Array<{id:string;name:string;mimeType?:string;shortcutDetails?:{targetId?:string;targetMimeType?:string}}>};
   return selectForgeFolder(data.files||[]).id;
 }
 
