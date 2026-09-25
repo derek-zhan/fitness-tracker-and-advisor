@@ -3,10 +3,8 @@ import { CheckInAlreadyCompletedError, CheckInSourceError, InvalidCheckInAnswers
 import { accessTokenForDevice, GoogleReauthorizationRequiredError, readCheckInExperience, saveCheckIn } from "../../../lib/google";
 import { torontoDateKey, WeightCheckInSourceError } from "../../../lib/weight-check-in";
 
-function identityError(status:"unauthorized"|"disconnected") {
-  return status==="unauthorized"
-    ? Response.json({error:"This Google account is not authorized",code:"google_not_allowed"},{status:403})
-    : Response.json({error:"Connect Google Sheets to check in",code:"google_auth_required"},{status:401});
+function identityError() {
+  return Response.json({error:"Connect Google Sheets to check in",code:"google_auth_required"},{status:401});
 }
 
 function routeError(error:unknown) {
@@ -20,9 +18,9 @@ function routeError(error:unknown) {
 
 async function authenticatedToken(request:Request) {
   const identity=await allowedConnectionForRequest(request);
-  if (identity.status!=="connected"||!identity.deviceIdHash) return {error:identityError(identity.status==="unauthorized"?"unauthorized":"disconnected")};
+  if (identity.status!=="connected"||!identity.deviceIdHash) return {error:identityError()};
   const accessToken=await accessTokenForDevice(identity.deviceIdHash);
-  if (!accessToken) return {error:identityError("disconnected")};
+  if (!accessToken) return {error:identityError()};
   return {accessToken};
 }
 

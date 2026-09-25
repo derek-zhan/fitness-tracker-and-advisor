@@ -4,7 +4,6 @@ import { isOwnerGoogleEmail } from "../../../../lib/owner-workouts";
 
 export async function GET(request: Request) {
   const result = await allowedConnectionForRequest(request);
-  if (result.status === "unauthorized") return Response.json({ status:"unauthorized", connected:false }, { status:403 });
   if (!result.connection || !result.deviceIdHash) return Response.json({ status:"disconnected", connected:false });
   try {
     await accessTokenForDevice(result.deviceIdHash);

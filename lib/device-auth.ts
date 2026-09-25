@@ -1,18 +1,10 @@
-import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { googleConnections } from "../db/schema";
-import { isAllowedGoogleEmail } from "./access-control";
 import { randomOAuthValue } from "./google";
 
 export const DEVICE_COOKIE = "forge_device";
 const DEVICE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-const workerEnv = env as unknown as Record<string, string | undefined>;
-
-export function isGoogleEmailAllowed(email: string) {
-  return isAllowedGoogleEmail(email, workerEnv.ALLOWED_GOOGLE_EMAILS);
-}
-
 export function deviceIdFromRequest(request: Request) {
   const cookie = request.headers.get("cookie") || "";
   for (const part of cookie.split(";")) {
@@ -57,6 +49,5 @@ export async function allowedConnectionForRequest(request: Request) {
   const db = getDb();
   const [connection] = await db.select().from(googleConnections).where(eq(googleConnections.deviceIdHash, deviceIdHash)).limit(1);
   if (!connection) return { deviceIdHash, connection: null, status: "disconnected" as const };
-  if (!isGoogleEmailAllowed(connection.email)) return { deviceIdHash, connection: null, status: "unauthorized" as const };
   return { deviceIdHash, connection, status: "connected" as const };
 }

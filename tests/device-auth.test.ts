@@ -1,16 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { isAllowedGoogleEmail, parseAllowedGoogleEmails } from "../lib/access-control.ts";
 import { isOwnerGoogleEmail, ownerWorkouts } from "../lib/owner-workouts.ts";
-
-test("allowlist is exact, case-insensitive, and fails closed", () => {
-  assert.equal(isAllowedGoogleEmail("Owner@gmail.com", "owner@gmail.com"), true);
-  assert.equal(isAllowedGoogleEmail("own.er@gmail.com", "owner@gmail.com"), false);
-  assert.equal(isAllowedGoogleEmail("owner+gym@gmail.com", "owner@gmail.com"), false);
-  assert.equal(isAllowedGoogleEmail("owner@gmail.com", undefined), false);
-  assert.deepEqual([...parseAllowedGoogleEmails(" owner@example.com,FRIEND@example.com ")], ["owner@example.com", "friend@example.com"]);
-});
 
 test("public client contains no personal sheet ids or browser-readable OAuth tokens", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
@@ -44,4 +35,6 @@ test("device cookie remains server-only and OAuth state is device-bound", async 
   assert.match(authorize, /deviceIdHash/);
   assert.match(callback, /state\.deviceIdHash !== await hashDeviceId\(deviceId\)/);
   assert.match(callback, /email_verified !== true/);
+  assert.doesNotMatch(deviceAuth, /ALLOWED_GOOGLE_EMAILS|isAllowedGoogleEmail/);
+  assert.doesNotMatch(callback, /ALLOWED_GOOGLE_EMAILS|isGoogleEmailAllowed|not_allowed/);
 });
