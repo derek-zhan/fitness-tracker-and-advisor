@@ -33,7 +33,6 @@ export async function POST(request: Request) {
     const payload = await request.json() as Payload;
     const db = getDb();
     const identity = await allowedConnectionForRequest(request);
-    if (identity.status === "unauthorized") return Response.json({ error:"This Google account is not authorized", code:"google_not_allowed" }, { status:403 });
     if (!identity.deviceIdHash) return Response.json({ error:"Connect Google Sheets before starting", code:"google_auth_required" }, { status:401 });
     if (payload.action === "start") {
       if (!payload.day || !payload.program || !payload.date) return Response.json({ error:"Missing workout details" }, { status:400 });

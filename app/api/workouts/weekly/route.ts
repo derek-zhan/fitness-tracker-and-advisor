@@ -8,7 +8,6 @@ import { workoutSessions } from "../../../../db/schema";
 export async function GET(request: Request) {
   try {
     const identity=await allowedConnectionForRequest(request);
-    if (identity.status === "unauthorized") return Response.json({error:"This Google account is not authorized",code:"google_not_allowed"},{status:403});
     if (!identity.deviceIdHash) return Response.json({error:"Connect Google to load your seven-day workouts",code:"google_auth_required"},{status:401});
     const accessToken=await accessTokenForDevice(identity.deviceIdHash);
     if (!accessToken) return Response.json({error:"Connect Google to load your seven-day workouts",code:"google_auth_required"},{status:401});

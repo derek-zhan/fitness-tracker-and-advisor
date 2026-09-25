@@ -16,7 +16,7 @@ Forge turns that same information into a focused workout flow. Google Sheets sta
 
 ## What Forge does
 
-- Guides approved users through a live seven-day Google Sheets program.
+- Guides permitted Site visitors through a live seven-day Google Sheets program.
 - Shows the private four-day strength and six-day glute programs only when the connected account is `zhanhangsky@gmail.com`; their Sheet IDs are delivered by an owner-guarded server endpoint and never embedded in the public client.
 - Finds `Workout Monday` through `Workout Sunday` in Google Drive and reads each latest `Week N` tab dynamically.
 - Starts sheet-driven sessions with the linked warm-up video, then shows each exercise’s linked YouTube demonstration and coaching cue.
@@ -32,7 +32,7 @@ Forge turns that same information into a focused workout flow. Google Sheets sta
 
 ## How it works
 
-1. Connect an approved Google account on this browser or device.
+1. Connect a Google account on this browser or device.
 2. Pick a workout day loaded from that account's Google Drive.
 3. Follow the exercise demo and coaching cue.
 4. Log each set; Forge writes it to Google Sheets immediately.
@@ -67,10 +67,9 @@ Forge expects these runtime values for its Google connection:
 GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
 GOOGLE_TOKEN_ENCRYPTION_KEY
-ALLOWED_GOOGLE_EMAILS
 ```
 
-The encryption key must be a base64-encoded AES key. `ALLOWED_GOOGLE_EMAILS` is a private, comma-separated list of exact email addresses; Forge denies all Google accounts when it is missing. The Google OAuth client also needs the app's `/api/google/callback` URL registered as an authorized redirect URI.
+The encryption key must be a base64-encoded AES key. The Google OAuth client also needs the app's `/api/google/callback` URL registered as an authorized redirect URI. Production access is managed through the Site's visitor permissions.
 
 ## Useful commands
 
@@ -84,4 +83,4 @@ npm run db:generate  # Generate migrations after schema changes
 
 ## Privacy
 
-Forge uses Google access only to identify an approved account and read or update its workout spreadsheets. Each browser connects separately using an HttpOnly device cookie; Google authorization tokens are encrypted in server-side storage and never placed in browser storage. See the [privacy policy](https://forge-workout-log.z-hangtian.chatgpt.site/privacy) for details.
+Forge uses Google access only to identify the connected account and read or update its workout spreadsheets. Each browser connects separately using an HttpOnly device cookie; Google authorization tokens are encrypted in server-side storage and never placed in browser storage. See the [privacy policy](https://forge-workout-log.z-hangtian.chatgpt.site/privacy) for details.

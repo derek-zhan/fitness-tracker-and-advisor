@@ -23,7 +23,7 @@ export default function PrivacyPage() {
 
         <section>
           <h2>What Forge accesses</h2>
-          <p>When you connect Google, Forge requests your verified Google account email address, permission to view and update Google Sheets, and read-only access to spreadsheet file names and locations in Google Drive. Forge checks the email against a private access list, uses Drive metadata only to find the top-level Forge folder and its Workout Monday through Workout Sunday files, then reads and updates those workout sheets when you use the seven-day program. The private four-day and six-day programs are available only to the designated owner account and are withheld from other approved accounts.</p>
+          <p>When you connect Google, Forge requests your verified Google account email address, permission to view and update Google Sheets, and read-only access to spreadsheet file names and locations in Google Drive. Access to Forge is controlled by the Site’s visitor permissions. Forge uses Drive metadata only to find the top-level Forge folder and its Workout Monday through Workout Sunday files, then reads and updates those workout sheets when you use the seven-day program. The private four-day and six-day programs remain available only to the designated owner account.</p>
         </section>
 
         <section>

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { googleConnections, googleOauthStates } from "../../../../db/schema";
-import { deviceCookie, deviceIdFromRequest, hashDeviceId, isGoogleEmailAllowed } from "../../../../lib/device-auth";
+import { deviceCookie, deviceIdFromRequest, hashDeviceId } from "../../../../lib/device-auth";
 import { encryptToken, googleClientId, googleClientSecret } from "../../../../lib/google";
 
 function redirect(url: URL, result: string, cookie?: string) {
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   if (!profileResponse.ok) return redirect(url, "failed");
   const profile = await profileResponse.json() as { email?:string; email_verified?:boolean };
   const email = profile.email?.trim().toLowerCase();
-  if (!email || profile.email_verified !== true || !isGoogleEmailAllowed(email)) return redirect(url, "not_allowed");
+  if (!email || profile.email_verified !== true) return redirect(url, "failed");
   const encryptedRefreshToken = await encryptToken(tokens.refresh_token);
   await db.insert(googleConnections).values({ deviceIdHash:state.deviceIdHash, email, encryptedRefreshToken }).onConflictDoUpdate({
     target:googleConnections.deviceIdHash,
