@@ -40,3 +40,8 @@ yarn-error.log*
 /outputs/
 /work/
 *.tsbuildinfo
+
+# Xcode user and generated workspace state
+xcuserdata/
+*.xcuserstate
+**/*.xcodeproj/project.xcworkspace/
