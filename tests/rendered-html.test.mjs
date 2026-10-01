@@ -15,15 +15,16 @@ test("server-renders the Google-only per-device connection experience", async ()
   assert.match(html,/<title>Forge — Guided Workout Log<\/title>/i);
   assert.match(html,/Connect this device/);
   assert.match(html,/Connect Google/);
-  assert.match(html,/YOUR LIVE 7-DAY PROGRAM/);
+  assert.match(html,/YOUR LIVE WORKOUT PROGRAM/);
+  assert.match(html,/Import a PDF or Word plan/);
   assert.doesNotMatch(html,/>4 DAYS|>6 DAYS|strength4|glute6/);
   assert.doesNotMatch(html,/Building your site/);
 });
 
-test("privacy policy describes weekday file discovery", async () => {
+test("privacy policy describes workout imports and narrow Drive creation access", async () => {
   const response=await render("/privacy");
   assert.equal(response.status,200);
   const html=await response.text();
-  assert.match(html,/Workout Monday through Workout Sunday/);
-  assert.match(html,/read-only access to spreadsheet file names/i);
+  assert.match(html,/sends that document to OpenAI/i);
+  assert.match(html,/permission to manage files Forge creates/i);
 });

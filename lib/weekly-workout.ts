@@ -139,6 +139,11 @@ function targetReps(repRange: string, current: string) {
   return Math.round(values.at(-1) || 10);
 }
 
+function prescribedLoad(volume:string) {
+  const match=/@\s*(\d+(?:\.\d+)?)\s*(?:lb|lbs|pounds?)?\b/i.exec(volume);
+  return match?Number(match[1]):0;
+}
+
 function columnName(index: number) {
   let current = index + 1;
   let value = "";
@@ -228,7 +233,7 @@ export function parseWeeklyWorkout(args: {
     if (!/^[A-Z]+\d+$/i.test(order) || !name) continue;
     const volume = cellText(row[volumeColumn]);
     const sets = Math.max(1, Math.round(numberFrom(volume.match(/^\s*\d+/)?.[0] || "", 1)));
-    const repRange = volume.match(/x\s*(.+)$/i)?.[1]?.trim() || cellText(row[repsColumn]) || "8–12";
+    const repRange = volume.match(/x\s*(.+?)(?:\s*@\s*\d|$)/i)?.[1]?.trim() || cellText(row[repsColumn]) || "8–12";
     const lowerName = name.toLowerCase();
     const unit = /\bmin(?:ute)?s?\b/i.test(repRange) ? "minutes" : /bodyweight|banded|plank|airplane|sit.?up/i.test(lowerName) ? "body" : "lb";
     exercises.push({
@@ -237,7 +242,7 @@ export function parseWeeklyWorkout(args: {
       sets,
       reps: targetReps(repRange, cellText(row[repsColumn])),
       repRange,
-      load: numberFrom(cellText(row[loadColumn])),
+      load: numberFrom(cellText(row[loadColumn]),prescribedLoad(volume)),
       unit,
       rest: Math.max(0, Math.round(numberFrom(cellText(row[restColumn]), unit === "minutes" ? 0 : 60))),
       cue: cueColumn >= 0 ? cellText(row[cueColumn]) || "Move with control and keep every rep consistent." : "Move with control and keep every rep consistent.",

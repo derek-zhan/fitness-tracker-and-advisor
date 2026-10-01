@@ -27,6 +27,7 @@ Forge turns that same information into a focused workout flow. Google Sheets sta
 - Runs the appropriate rest timer after each set.
 - Compares training volume with previous results.
 - Suggests when to add weight, add a rep, or stay with the current load.
+- Imports PDF and Word workout plans, stores the source in Google Drive, and creates trackable weekday workout sheets.
 
 ![Forge exercise logging screen](forge-workout-expanded-iphone-17-pro.png)
 
@@ -67,9 +68,11 @@ Forge expects these runtime values for its Google connection:
 GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
 GOOGLE_TOKEN_ENCRYPTION_KEY
+OPENAI_API_KEY
+OPENAI_WORKOUT_IMPORT_MODEL
 ```
 
-The encryption key must be a base64-encoded AES key. The Google OAuth client also needs the app's `/api/google/callback` URL registered as an authorized redirect URI. Production access is managed through the Site's visitor permissions.
+The encryption key must be a base64-encoded AES key. `OPENAI_WORKOUT_IMPORT_MODEL` defaults to `gpt-6-astra` when omitted. The Google OAuth client also needs the app's `/api/google/callback` URL registered as an authorized redirect URI. Production access is managed through the Site's visitor permissions.
 
 ## Useful commands
 

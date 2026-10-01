@@ -1,5 +1,5 @@
 import { allowedConnectionForRequest, deviceCookie, deviceIdFromRequest } from "../../../../lib/device-auth";
-import { accessTokenForDevice, GoogleReauthorizationRequiredError } from "../../../../lib/google";
+import { accessTokenForDevice, GoogleReauthorizationRequiredError, hasWorkoutImportScope } from "../../../../lib/google";
 import { isOwnerGoogleEmail } from "../../../../lib/owner-workouts";
 
 export async function GET(request: Request) {
@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const headers = new Headers({ "cache-control":"no-store" });
     const deviceId = deviceIdFromRequest(request);
     if (deviceId) headers.set("set-cookie", deviceCookie(deviceId, request.url));
-    return Response.json({ status:"connected", connected:true, email:result.connection.email, personalPrograms:isOwnerGoogleEmail(result.connection.email) }, { headers });
+    return Response.json({ status:"connected", connected:true, email:result.connection.email, personalPrograms:isOwnerGoogleEmail(result.connection.email), canImportWorkouts:hasWorkoutImportScope(result.connection.grantedScopes) }, { headers });
   } catch (error) {
     if (error instanceof GoogleReauthorizationRequiredError) return Response.json({ status:"reauthorization_required", connected:false }, { status:401 });
     throw error;

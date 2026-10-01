@@ -11,7 +11,7 @@ type SetLog = { exercise:string; set:number; reps:number; load:number; baselineL
 type PreviousSet = { exerciseIndex:number; setNumber:number; reps:number; load:number };
 type StartWorkoutResponse = { sessionId?:string; workoutDay?:number; workoutDate?:string; workout?:WeeklyWorkout; sets?:Array<{exercise:string; setNumber:number; reps:number; load:number}>; previousSets?:PreviousSet[]; resumed?:boolean; error?:string };
 type WorkoutStage = "warmup" | "exercise" | "finish";
-type WorkoutDraft = { sessionId:string; programId:ProgramId; selectedDay:number; exerciseIndex:number; setNumber:number; reps:number; load:number; logs:SetLog[]; previousSets:PreviousSet[]; startedAt:number; stage:WorkoutStage; cardioCompleted:boolean; notes:string };
+type WorkoutDraft = { sessionId:string; programId:ProgramId; planId:string; selectedDay:number; exerciseIndex:number; setNumber:number; reps:number; load:number; logs:SetLog[]; previousSets:PreviousSet[]; startedAt:number; stage:WorkoutStage; cardioCompleted:boolean; notes:string };
 type View = "home" | "checkin" | "workout" | "summary";
 type AuthState = "checking" | "disconnected" | "connected" | "reauthorization_required";
 type WeightCheckInState = "hidden" | "loading" | "ready" | "saving";
@@ -21,9 +21,12 @@ type WeightPoint = { date:string; weight:number };
 type CheckInData = { date:string; previousDate:string|null; weekNumber:number; completed:boolean; questions:CheckInQuestion[]; answers:CheckInAnswer[]; weightProgress:{fromDate:string|null;toDate:string;points:WeightPoint[];startWeight:number|null;endWeight:number|null;change:number|null};sheetUrl:string };
 type CheckInStage = "landing" | "questions" | "finish";
 type CheckInDraft = { date:string; step:number; answers:CheckInAnswer[] };
+type WorkoutPlanSummary = { id:string; name:string; source:"drive"|"imported"; days:number[]; createdAt:string };
+type ImportedPlanResult = { id:string; name:string; folderUrl:string; sourceUrl:string; days:Array<{day:number;dayName:string;sheetUrl:string}> };
 
 const workoutDraftKey="forge-active-workout";
 const checkInDraftKey="forge-active-check-in";
+const selectedPlanKey=(email:string)=>`forge-selected-plan:${email.trim().toLowerCase()}`;
 
 const localWeeklyPreview:WeeklyCatalogDay[]=[{
   day:1, dayName:"Monday", available:true, continueWeek:"Week 2",
@@ -75,6 +78,11 @@ export default function Home(){
   const [duration,setDuration]=useState(0);
   const [googleEmail,setGoogleEmail]=useState("");
   const [authState,setAuthState]=useState<AuthState>("checking");
+  const [canImportWorkouts,setCanImportWorkouts]=useState(false);
+  const [plans,setPlans]=useState<WorkoutPlanSummary[]>([]);
+  const [selectedPlanId,setSelectedPlanId]=useState("");
+  const [importState,setImportState]=useState<"idle"|"importing">("idle");
+  const [importedPlan,setImportedPlan]=useState<ImportedPlanResult|null>(null);
   const [notice,setNotice]=useState("");
   const [weeklyDays,setWeeklyDays]=useState<WeeklyCatalogDay[]>(()=>WEEKDAYS.map((dayName,index)=>({day:index+1,dayName,available:false,error:"Connect Google to load"})));
   const [weeklyState,setWeeklyState]=useState<"idle"|"loading"|"ready"|"connect"|"error">("idle");
@@ -100,6 +108,7 @@ export default function Home(){
   const weightDialog=useRef<HTMLDivElement|null>(null);
   const weightSaving=useRef(false);
   const checkInInput=useRef<HTMLTextAreaElement|null>(null);
+  const importInput=useRef<HTMLInputElement|null>(null);
   const visibleWeeklyDays=useMemo(()=>foundWeeklyDays(weeklyDays),[weeklyDays]);
   const workouts=useMemo(()=>visibleWeeklyDays.flatMap(item=>item.workout?[item.workout as Workout]:[]),[visibleWeeklyDays]);
   const selectedWeeklyDay=visibleWeeklyDays.find(item=>item.day===selectedDay);
@@ -112,19 +121,19 @@ export default function Home(){
   const currentSetLogged=exercise?logs.some(item=>item.exercise===exercise.name&&item.set===setNumber):false;
 
   useEffect(()=>{if(!resting)return;const updateRest=()=>{const remaining=Math.max(0,Math.ceil((restEndsAt.current-Date.now())/1000));setRestLeft(remaining);if(remaining===0){setResting(false);if(!restAlerted.current){restAlerted.current=true;window.alert("Rest complete — time for your next set.")}}};updateRest();timer.current=setInterval(updateRest,1000);document.addEventListener("visibilitychange",updateRest);window.addEventListener("focus",updateRest);window.addEventListener("pageshow",updateRest);return()=>{if(timer.current)clearInterval(timer.current);timer.current=null;document.removeEventListener("visibilitychange",updateRest);window.removeEventListener("focus",updateRest);window.removeEventListener("pageshow",updateRest)}},[resting]);
-  useEffect(()=>{if(view!=="workout"||!sessionId)return;localStorage.setItem(workoutDraftKey,JSON.stringify({sessionId,programId,selectedDay,exerciseIndex,setNumber,reps,load,logs,previousSets,startedAt,stage,cardioCompleted,notes} satisfies WorkoutDraft))},[view,sessionId,programId,selectedDay,exerciseIndex,setNumber,reps,load,logs,previousSets,startedAt,stage,cardioCompleted,notes]);
+  useEffect(()=>{if(view!=="workout"||!sessionId)return;localStorage.setItem(workoutDraftKey,JSON.stringify({sessionId,programId,planId:selectedPlanId,selectedDay,exerciseIndex,setNumber,reps,load,logs,previousSets,startedAt,stage,cardioCompleted,notes} satisfies WorkoutDraft))},[view,sessionId,programId,selectedPlanId,selectedDay,exerciseIndex,setNumber,reps,load,logs,previousSets,startedAt,stage,cardioCompleted,notes]);
 
   async function refreshConnection(loadAfter=false){
     try{
       const response=await fetch("/api/google/status",{cache:"no-store"});
-      const data=await response.json() as {status?:AuthState;connected?:boolean;email?:string};
+      const data=await response.json() as {status?:AuthState;connected?:boolean;email?:string;canImportWorkouts?:boolean};
       const next=data.status||"disconnected";setAuthState(next);
       if(next==="connected"){
-        setGoogleEmail(data.email||"Google connected");
-        if(loadAfter||weeklyState!=="ready")await loadWeeklyCatalog()
+        const email=data.email||"Google connected";setGoogleEmail(email);setCanImportWorkouts(Boolean(data.canImportWorkouts));
+        if(loadAfter||weeklyState!=="ready")await loadWorkoutPlans(email)
       }
-      else{setGoogleEmail("");setWeightCheckInState("hidden");setWeeklyState("connect");if(next==="reauthorization_required")setNotice("Reconnect Google to continue.")}
-    }catch{setAuthState("disconnected");setWeightCheckInState("hidden");setWeeklyState("connect")}
+      else{setGoogleEmail("");setCanImportWorkouts(false);setPlans([]);setSelectedPlanId("");setWeightCheckInState("hidden");setWeeklyState("connect");if(next==="reauthorization_required")setNotice("Reconnect Google to continue.")}
+    }catch{setAuthState("disconnected");setCanImportWorkouts(false);setWeightCheckInState("hidden");setWeeklyState("connect")}
   }
 
   async function refreshWeightCheckIn(){
@@ -137,7 +146,44 @@ export default function Home(){
     }catch{setWeightCheckInState("hidden");setNotice("Weight check-in could not be loaded")}
   }
 
-  async function loadWeeklyCatalog(){setWeeklyState("loading");try{const response=await fetch("/api/workouts/weekly",{cache:"no-store"});const data=await response.json() as {days?:WeeklyCatalogDay[];error?:string;code?:string};if(!response.ok){if(data.code==="google_auth_required"||data.code==="google_reauthorize_required"){setWeeklyState("connect");return}throw new Error(data.error||"Weekday workouts could not be loaded")}const days=data.days||[];const found=foundWeeklyDays(days);setWeeklyDays(days);setSelectedDay(current=>found.some(item=>item.day===current)?current:found[0]?.day||1);if(!found.length)setNotice("No Workout Monday through Workout Sunday sheets were found in this Google Drive.");setWeeklyState("ready")}catch(error){setWeeklyState("error");setNotice(error instanceof Error?error.message:"Weekday workouts could not be loaded")}}
+  async function loadWorkoutPlans(email:string,preferredPlanId?:string){
+    try{
+      const response=await fetch("/api/workout-plans",{cache:"no-store"});
+      const data=await response.json() as {plans?:WorkoutPlanSummary[];error?:string;code?:string};
+      if(!response.ok)throw new Error(data.error||"Workout plans could not be loaded");
+      const nextPlans=data.plans||[];setPlans(nextPlans);
+      const stored=localStorage.getItem(selectedPlanKey(email))||"";
+      const nextId=[preferredPlanId,stored,"legacy",nextPlans[0]?.id].find(candidate=>candidate&&nextPlans.some(plan=>plan.id===candidate))||"";
+      setSelectedPlanId(nextId);
+      if(nextId){localStorage.setItem(selectedPlanKey(email),nextId);await loadWeeklyCatalog(nextId)}
+      else{setWeeklyDays(WEEKDAYS.map((dayName,index)=>({day:index+1,dayName,available:false,error:"Import a workout plan to begin"})));setWeeklyState("ready")}
+    }catch(error){setWeeklyState("error");setNotice(error instanceof Error?error.message:"Workout plans could not be loaded")}
+  }
+
+  async function loadWeeklyCatalog(planId=selectedPlanId){setWeeklyState("loading");try{const response=await fetch(`/api/workouts/weekly?planId=${encodeURIComponent(planId)}`,{cache:"no-store"});const data=await response.json() as {days?:WeeklyCatalogDay[];error?:string;code?:string};if(!response.ok){if(data.code==="google_auth_required"||data.code==="google_reauthorize_required"){setWeeklyState("connect");return}throw new Error(data.error||"Weekday workouts could not be loaded")}const days=data.days||[];const found=foundWeeklyDays(days);setWeeklyDays(days);setSelectedDay(current=>found.some(item=>item.day===current)?current:found[0]?.day||1);if(!found.length)setNotice("No usable workout days were found in this plan.");setWeeklyState("ready")}catch(error){setWeeklyState("error");setNotice(error instanceof Error?error.message:"Weekday workouts could not be loaded")}}
+
+  async function chooseWorkoutPlan(planId:string){
+    if(planId===selectedPlanId||weeklyState==="loading")return;
+    setSelectedPlanId(planId);setExerciseIndex(0);setNotice("");setImportedPlan(null);
+    if(googleEmail)localStorage.setItem(selectedPlanKey(googleEmail),planId);
+    if(previewMode)return;
+    await loadWeeklyCatalog(planId);
+  }
+
+  async function importWorkoutPlan(file:File){
+    if(file.size>10*1024*1024){setNotice("Workout plan files must be 10 MB or smaller.");return}
+    if(!/\.(pdf|docx)$/i.test(file.name)){setNotice("Choose a PDF or Word (.docx) workout plan.");return}
+    setImportState("importing");setImportedPlan(null);setNotice("");
+    try{
+      const form=new FormData();form.set("file",file);form.set("requestId",crypto.randomUUID());
+      const response=await fetch("/api/workout-plans/import",{method:"POST",body:form});
+      const data=await response.json() as {plan?:ImportedPlanResult;error?:string;code?:string};
+      if(!response.ok){if(data.code==="google_reauthorize_required")setCanImportWorkouts(false);throw new Error(data.error||"The workout plan could not be imported")}
+      if(!data.plan)throw new Error("The workout plan was created but its details could not be loaded");
+      setImportedPlan(data.plan);setNotice(`${data.plan.name} was created in Google Drive.`);await loadWorkoutPlans(googleEmail,data.plan.id);
+    }catch(error){setNotice(error instanceof Error?error.message:"The workout plan could not be imported")}
+    finally{setImportState("idle");if(importInput.current)importInput.current.value=""}
+  }
   async function loadCheckIn(){
     setCheckInState("loading");setCheckInError("");
     try{
@@ -173,13 +219,13 @@ export default function Home(){
   function advanceCheckIn(){const answer=checkInAnswers[checkInStep]?.value.trim();if(!answer){setCheckInError("Add an answer before continuing.");return}if(checkInStep>=checkInAnswers.length-1){void finishCheckIn();return}setCheckInStep(step=>step+1);setCheckInError("")}
   // OAuth return and device status are intentionally handled once on mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{const timeout=window.setTimeout(()=>{const params=new URLSearchParams(window.location.search);if(process.env.NODE_ENV==="development"&&params.get("preview")==="weekly7"){setPreviewMode(true);setWeeklyDays(localWeeklyPreview);setWeeklyState("ready");setWeightCheckInState("ready");setAuthState("connected");return}const result=params.get("google");if(result){window.history.replaceState({},"","/");if(result!=="connected")setNotice("Google connection was not completed. Please try again.")}void refreshConnection(result==="connected")},0);return()=>window.clearTimeout(timeout)},[]);
+  useEffect(()=>{const timeout=window.setTimeout(()=>{const params=new URLSearchParams(window.location.search);if(process.env.NODE_ENV==="development"&&params.get("preview")==="weekly7"){setPreviewMode(true);setGoogleEmail("preview@example.com");setCanImportWorkouts(true);setPlans([{id:"legacy",name:"Current Workout",source:"drive",days:[1],createdAt:""},{id:"preview-plan",name:"Strength Builder",source:"imported",days:[1],createdAt:"2026-09-29"}]);setSelectedPlanId("legacy");setWeeklyDays(localWeeklyPreview);setWeeklyState("ready");setWeightCheckInState("ready");setAuthState("connected");return}const result=params.get("google");if(result){window.history.replaceState({},"","/");if(result!=="connected")setNotice("Google connection was not completed. Please try again.")}void refreshConnection(result==="connected")},0);return()=>window.clearTimeout(timeout)},[]);
   // Refresh the daily shortcut whenever the connected home screen becomes active again.
   useEffect(()=>{if(authState!=="connected"||view!=="home"||previewMode)return;const refresh=()=>{void refreshWeightCheckIn()};refresh();window.addEventListener("focus",refresh);window.addEventListener("pageshow",refresh);return()=>{window.removeEventListener("focus",refresh);window.removeEventListener("pageshow",refresh)}},[authState,view,previewMode]);
   useEffect(()=>{if(checkInStage!=="questions"||!checkInData)return;localStorage.setItem(checkInDraftKey,JSON.stringify({date:checkInData.date,step:checkInStep,answers:checkInAnswers} satisfies CheckInDraft))},[checkInStage,checkInData,checkInStep,checkInAnswers]);
   useEffect(()=>{if(checkInStage!=="questions")return;const focusTimer=window.setTimeout(()=>checkInInput.current?.focus(),0);return()=>window.clearTimeout(focusTimer)},[checkInStage,checkInStep]);
   useEffect(()=>{if(!weightDialogOpen)return;const previouslyFocused=document.activeElement instanceof HTMLElement?document.activeElement:null;const focusTimer=window.setTimeout(()=>weightInput.current?.focus(),0);const onKeyDown=(event:KeyboardEvent)=>{if(event.key==="Escape"){event.preventDefault();if(!weightSaving.current)setWeightDialogOpen(false);return}if(event.key!=="Tab"||!weightDialog.current)return;const controls=[...weightDialog.current.querySelectorAll<HTMLElement>('input,button:not([disabled])')];if(!controls.length)return;const first=controls[0];const last=controls[controls.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}};document.addEventListener("keydown",onKeyDown);return()=>{window.clearTimeout(focusTimer);document.removeEventListener("keydown",onKeyDown);previouslyFocused?.focus()}},[weightDialogOpen]);
-  async function disconnect(){await fetch("/api/google/disconnect",{method:"POST"});localStorage.removeItem(workoutDraftKey);localStorage.removeItem(checkInDraftKey);setGoogleEmail("");setWeightDialogOpen(false);setWeightCheckInState("hidden");setCheckInData(null);setCheckInState("idle");setWeeklyDays(WEEKDAYS.map((dayName,index)=>({day:index+1,dayName,available:false,error:"Connect Google to load"})));setWeeklyState("connect");setAuthState("disconnected");setView("home");setNotice("Google disconnected from this device.")}
+  async function disconnect(){await fetch("/api/google/disconnect",{method:"POST"});localStorage.removeItem(workoutDraftKey);localStorage.removeItem(checkInDraftKey);setGoogleEmail("");setCanImportWorkouts(false);setPlans([]);setSelectedPlanId("");setImportedPlan(null);setWeightDialogOpen(false);setWeightCheckInState("hidden");setCheckInData(null);setCheckInState("idle");setWeeklyDays(WEEKDAYS.map((dayName,index)=>({day:index+1,dayName,available:false,error:"Connect Google to load"})));setWeeklyState("connect");setAuthState("disconnected");setView("home");setNotice("Google disconnected from this device.")}
   function openWeightCheckIn(){setWeightValue("");setWeightError("");setWeightDialogOpen(true)}
   function closeWeightCheckIn(){if(!weightSaving.current)setWeightDialogOpen(false)}
   async function submitWeightCheckIn(event:React.FormEvent<HTMLFormElement>){
@@ -202,12 +248,12 @@ export default function Home(){
     const chosen=workouts.find(item=>item.day===day);if(!chosen){setNotice("This weekday sheet is not available yet.");return}
     setSelectedDay(day);setNotice("");setSyncState("saving");
     try{
-      const response=await fetch("/api/workouts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"start",mode,program:programId,day:chosen.day,dayLabel:chosen.dayName||`Day ${chosen.day}`,workoutType:chosen.type,date:new Date().toISOString()})});
+      const response=await fetch("/api/workouts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"start",mode,program:programId,planId:selectedPlanId,day:chosen.day,dayLabel:chosen.dayName||`Day ${chosen.day}`,workoutType:chosen.type,date:new Date().toISOString()})});
       const data=await response.json() as StartWorkoutResponse;if(!response.ok||!data.sessionId)throw new Error(data.error||"Could not start workout");
       const resumedProgram:ProgramId="weekly7";const resumedDay=data.workoutDay&&data.workoutDay>200?data.workoutDay-200:day;const activeWorkout=(data.workout as Workout|undefined)||workouts.find(item=>item.day===resumedDay)||chosen;
       if(data.workout)setWeeklyDays(items=>items.map(item=>item.day===data.workout!.day?{...item,available:true,continueWeek:data.workout!.sheetTab,workout:data.workout}:item));
       const baselineSets=data.previousSets||[];const serverLogs:SetLog[]=uniqueSetLogs((data.sets||[]).map(item=>{const index=activeWorkout.exercises.findIndex(candidate=>candidate.name===item.exercise);const baseline=baselineSets.find(candidate=>candidate.exerciseIndex===index&&candidate.setNumber===item.setNumber);return {exercise:item.exercise,set:item.setNumber,reps:item.reps,load:item.load,baselineLoad:baseline?.load??0}}));
-      const draft=readWorkoutDraft();const matchingDraft=draft?.sessionId===data.sessionId&&draft.programId===resumedProgram&&draft.selectedDay===resumedDay?draft:null;const restoredLogs=matchingDraft?uniqueSetLogs([...matchingDraft.logs,...serverLogs]):serverLogs;
+      const draft=readWorkoutDraft();const matchingDraft=draft?.sessionId===data.sessionId&&draft.programId===resumedProgram&&draft.planId===selectedPlanId&&draft.selectedDay===resumedDay?draft:null;const restoredLogs=matchingDraft?uniqueSetLogs([...matchingDraft.logs,...serverLogs]):serverLogs;
       let nextExerciseIndex=0;let nextSetNumber=1;findNextSet:for(let index=0;index<activeWorkout.exercises.length;index++){for(let set=1;set<=activeWorkout.exercises[index].sets;set++){if(!restoredLogs.some(item=>item.exercise===activeWorkout.exercises[index].name&&item.set===set)){nextExerciseIndex=index;nextSetNumber=set;break findNextSet}}nextExerciseIndex=index;nextSetNumber=activeWorkout.exercises[index].sets}
       if(matchingDraft&&activeWorkout.exercises[matchingDraft.exerciseIndex]&&matchingDraft.setNumber>=1&&matchingDraft.setNumber<=activeWorkout.exercises[matchingDraft.exerciseIndex].sets){nextExerciseIndex=matchingDraft.exerciseIndex;nextSetNumber=matchingDraft.setNumber}
       const nextExercise=activeWorkout.exercises[nextExerciseIndex];const selectedSaved=restoredLogs.find(item=>item.exercise===nextExercise.name&&item.set===nextSetNumber);const lastExerciseSet=[...restoredLogs].reverse().find(item=>item.exercise===nextExercise.name);const selectedBaseline=baselineSets.find(item=>item.exerciseIndex===nextExerciseIndex&&item.setNumber===nextSetNumber);
@@ -226,14 +272,23 @@ export default function Home(){
     {weightDialogOpen&&<div className="weight-modal-backdrop"><button type="button" className="weight-modal-dismiss" aria-label="Close weight check-in" onClick={closeWeightCheckIn}/><div ref={weightDialog} className="weight-modal" role="dialog" aria-modal="true" aria-labelledby="weight-modal-title" aria-describedby="weight-modal-description"><form onSubmit={submitWeightCheckIn}><span className="weight-modal-emoji" aria-hidden="true">⚖️</span><p className="kicker">TODAY&apos;S CHECK-IN</p><h2 id="weight-modal-title">Log your weight</h2><p id="weight-modal-description">Add today’s weight to your Workout Check-in sheet.</p><label htmlFor="weight-value">Weight <small>lb</small></label><input ref={weightInput} id="weight-value" name="weight" type="number" inputMode="decimal" min="0.1" step="0.1" value={weightValue} onChange={event=>setWeightValue(event.target.value)} aria-invalid={Boolean(weightError)} aria-describedby={weightError?"weight-error":undefined} disabled={weightCheckInState==="saving"}/>{weightError&&<p id="weight-error" className="weight-error" role="alert">{weightError}</p>}<div className="weight-modal-actions"><button type="button" className="weight-cancel" onClick={closeWeightCheckIn} disabled={weightCheckInState==="saving"}>Cancel</button><button type="submit" className="weight-save" disabled={weightCheckInState==="saving"}>{weightCheckInState==="saving"?"Saving…":"Save weight"}</button></div></form></div></div>}
     {view!=="home"&&notice&&<div className="notice" role="alert">{notice}</div>}
     {view==="home"&&<section className="home-view">
-      <div className="hero-copy-block"><div><p className="kicker">YOUR LIVE 7-DAY PROGRAM</p><h1>Your week.<br/><span>Always current.</span></h1></div><p className="intro">Every day is read directly from your Google Sheet, including warm-up, exercise videos, cardio, and notes.</p></div>
+      <div className="hero-copy-block"><div><p className="kicker">YOUR LIVE WORKOUT PROGRAM</p><h1>Your week.<br/><span>Always current.</span></h1></div><p className="intro">Every day is read directly from your Google Sheets. Import a PDF or Word plan whenever you want another program to track.</p></div>
       {googleEmail&&<div className="google-status"><span className="green-dot"/><b>{googleEmail}</b><small>Connected on this device</small><button type="button" onClick={disconnect}>Disconnect</button></div>}
       {notice&&<div className="notice" role="alert">{notice}</div>}
       {authState!=="connected"?<div className="connect-card"><span className="analysis-tag">GOOGLE SHEETS</span><h2>{authState==="reauthorization_required"?"Reconnect this device":"Connect this device"}</h2><p>Sign in with Google to load and update your workout sheets. Each browser connects separately.</p><a className="primary-action" href="/api/google/authorize?day=1">Connect Google <span>→</span></a></div>:<>
-        <div className="day-grid" role="list" aria-label="Choose a workout day">{visibleWeeklyDays.map(item=><button key={item.dayName} role="listitem" className={`day-card ${selectedDay===item.day?"active":""}`} onClick={()=>setSelectedDay(item.day)}><span className="day-card-top"><b>{item.dayName}</b><i>{item.workout!.accent}</i></span><span className="day-card-number">{String(item.day).padStart(2,"0")}</span><span className="day-card-type">{item.workout!.type}</span><span className="day-card-focus">{item.workout!.focus}</span><span className="day-card-meta"><b>{item.workout!.nextWeek?`Next: ${item.workout!.nextWeek}`:`${item.workout!.exercises.length} exercises`}</b><small>{item.workout!.previousDate?`Last: ${item.workout!.previousDate}`:"No previous date"}</small></span></button>)}</div>
-        <div className="start-dock"><div><span>READY FOR</span><b>{selectedWeeklyDay?.workout?`${selectedWeeklyDay.dayName} · ${selectedWeeklyDay.workout.type}`:weeklyState==="loading"?"Loading your sheets…":"No workout sheets found"}</b></div><div className="start-actions">{selectedWeeklyDay?.continueWeek&&<button className="continue-action" onClick={()=>startWorkoutForDay(selectedDay,"continue")} disabled={syncState==="saving"}>Continue {selectedWeeklyDay.continueWeek}</button>}<button className="primary-action" onClick={()=>startWorkoutForDay(selectedDay)} disabled={syncState==="saving"||!workout||!selectedWeeklyDay?.available||weeklyState==="loading"}>{weeklyState==="loading"?"Loading sheets…":syncState==="saving"?"Starting…":"Start workout"} <span>→</span></button></div></div>
+        <div className="plan-toolbar">
+          {plans.length>1?<div className="plan-tabs" role="tablist" aria-label="Choose a workout plan">{plans.map(plan=><button key={plan.id} type="button" role="tab" aria-selected={selectedPlanId===plan.id} className={selectedPlanId===plan.id?"active":""} onClick={()=>void chooseWorkoutPlan(plan.id)}>{plan.name}</button>)}</div>:<div className="single-plan-name">{plans[0]?.name||"No workout plan yet"}</div>}
+          <input ref={importInput} className="visually-hidden" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={event=>{const file=event.target.files?.[0];if(file)void importWorkoutPlan(file)}}/>
+          {canImportWorkouts?<button type="button" className="import-plan-button" disabled={importState==="importing"} onClick={()=>importInput.current?.click()}>{importState==="importing"?"Importing plan…":"Import PDF or Word"}</button>:<a className="import-plan-button" href="/api/google/authorize?day=1">Reconnect to import</a>}
+        </div>
+        {importState==="importing"&&<div className="import-progress" role="status"><span className="pulse-dot"/><div><b>Building your workout plan</b><small>Reading the document and creating its Drive folder and Google Sheets…</small></div></div>}
+        {importedPlan&&<div className="import-result"><div><span className="analysis-tag">IMPORT COMPLETE</span><h2>{importedPlan.name}</h2><p>{importedPlan.days.map(day=>day.dayName).join(" · ")}</p></div><div className="import-links"><a href={importedPlan.folderUrl} target="_blank" rel="noreferrer">Open folder ↗</a><a href={importedPlan.sourceUrl} target="_blank" rel="noreferrer">Source file ↗</a>{importedPlan.days.map(day=><a key={day.day} href={day.sheetUrl} target="_blank" rel="noreferrer">{day.dayName} sheet ↗</a>)}</div></div>}
+        {!plans.length&&weeklyState!=="loading"?<div className="empty-plans"><span>＋</span><h2>Import your first workout plan.</h2><p>Forge will keep the original document and build the matching workout sheets in your Google Drive.</p></div>:<>
+          <div className="day-grid" role="list" aria-label="Choose a workout day">{visibleWeeklyDays.map(item=><button key={item.dayName} role="listitem" className={`day-card ${selectedDay===item.day?"active":""}`} onClick={()=>setSelectedDay(item.day)}><span className="day-card-top"><b>{item.dayName}</b><i>{item.workout!.accent}</i></span><span className="day-card-number">{String(item.day).padStart(2,"0")}</span><span className="day-card-type">{item.workout!.type}</span><span className="day-card-focus">{item.workout!.focus}</span><span className="day-card-meta"><b>{item.workout!.nextWeek?`Next: ${item.workout!.nextWeek}`:`${item.workout!.exercises.length} exercises`}</b><small>{item.workout!.previousDate?`Last: ${item.workout!.previousDate}`:"No previous date"}</small></span></button>)}</div>
+          <div className="start-dock"><div><span>READY FOR</span><b>{selectedWeeklyDay?.workout?`${selectedWeeklyDay.dayName} · ${selectedWeeklyDay.workout.type}`:weeklyState==="loading"?"Loading your sheets…":"No workout sheets found"}</b></div><div className="start-actions">{selectedWeeklyDay?.continueWeek&&<button className="continue-action" onClick={()=>startWorkoutForDay(selectedDay,"continue")} disabled={syncState==="saving"}>Continue {selectedWeeklyDay.continueWeek}</button>}<button className="primary-action" onClick={()=>startWorkoutForDay(selectedDay)} disabled={syncState==="saving"||!workout||!selectedWeeklyDay?.available||weeklyState==="loading"}>{weeklyState==="loading"?"Loading sheets…":syncState==="saving"?"Starting…":"Start workout"} <span>→</span></button></div></div>
+        </>}
       </>}
-      <div className="source-note"><span className="green-dot"/> Workout Monday through Workout Sunday · a fresh Week tab is created for every session</div>
+      <div className="source-note"><span className="green-dot"/> {plans.find(plan=>plan.id===selectedPlanId)?.name||"Workout plan"} · a fresh Week tab is created for every session</div>
     </section>}
     {view==="checkin"&&<section className="checkin-view">
       {googleEmail&&<div className="google-status"><span className="green-dot"/><b>{googleEmail}</b><small>Connected on this device</small><button type="button" onClick={disconnect}>Disconnect</button></div>}
