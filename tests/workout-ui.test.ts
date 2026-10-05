@@ -25,5 +25,6 @@ test("home imports PDF or Word plans and only shows plan tabs for multiple plans
   assert.match(source,/plans\.length>1\?<div className="plan-tabs"/);
   assert.match(source,/fetch\("\/api\/workout-plans\/import"/);
   assert.match(source,/planId:selectedPlanId/);
-  assert.match(source,/Reconnect to import/);
+  assert.match(source,/📥.*Import/);
+  assert.match(source,/aria-label="Reconnect Google to import a workout plan"/);
 });
