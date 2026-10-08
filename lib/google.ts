@@ -6,8 +6,21 @@ import { nextWeeklyWorkoutTab, parseWeeklyWorkout, readPreviousWeeklySets, selec
 import { hasWeightRecordForDate, selectWeightCheckInFile, WEIGHT_CHECK_IN_SPREADSHEET, WEIGHT_CHECK_IN_TAB } from "./weight-check-in";
 import { answersForRow, buildCheckInRow, CHECK_IN_TAB, checkInQuestions, checkInRowForDate, CheckInAlreadyCompletedError, CheckInSourceError, nextCheckInWeek, previousCheckInDate, validateCheckInAnswers, weightProgress, weekNumber, type CheckInAnswer, type CheckInExperience } from "./check-in";
 import { forgeFolderQuery, queryInsideFolder, selectForgeFolder } from "./google-drive";
+import { workoutSheetRows, type ImportedWorkoutDay, type ImportedWorkoutPlan } from "./workout-import";
 
 const workerEnv = env as unknown as Record<string, string | undefined>;
+
+export const GOOGLE_OAUTH_SCOPES=[
+  "openid",
+  "email",
+  "https://www.googleapis.com/auth/spreadsheets",
+  "https://www.googleapis.com/auth/drive.metadata.readonly",
+  "https://www.googleapis.com/auth/drive.file",
+] as const;
+
+export function hasWorkoutImportScope(scopes:string|null|undefined) {
+  return new Set((scopes||"").split(/\s+/)).has("https://www.googleapis.com/auth/drive.file");
+}
 
 function required(name: string) {
   const value = workerEnv[name];
@@ -84,6 +97,23 @@ async function googleJson(url: string, accessToken: string, init?: RequestInit) 
   return data;
 }
 
+async function googleMultipartJson(url:string,accessToken:string,metadata:Record<string,unknown>,file:File) {
+  const boundary=`forge_${crypto.randomUUID().replace(/-/g,"")}`;
+  const body=new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`,
+    `--${boundary}\r\nContent-Type: ${file.type||"application/octet-stream"}\r\n\r\n`,
+    await file.arrayBuffer(),
+    `\r\n--${boundary}--`,
+  ]);
+  const response=await fetch(url,{method:"POST",headers:{authorization:`Bearer ${accessToken}`,"content-type":`multipart/related; boundary=${boundary}`},body});
+  const data=await response.json() as Record<string,unknown>;
+  if (!response.ok) {
+    const apiError=data.error as {message?:string}|undefined;
+    throw new Error(apiError?.message||"Google Drive upload failed");
+  }
+  return data;
+}
+
 function quotedSheet(sheetTab: string) {
   return `'${sheetTab.replace(/'/g, "''")}'`;
 }
@@ -92,10 +122,75 @@ type WeeklyFile = { id:string; name:string; webViewLink?:string };
 
 export class WeightAlreadyCheckedInError extends Error {}
 
-async function forgeDriveFolderId(accessToken:string) {
+export async function forgeDriveFolderId(accessToken:string) {
   const params=new URLSearchParams({q:forgeFolderQuery(),fields:"files(id,name,mimeType,shortcutDetails(targetId,targetMimeType))",pageSize:"10"});
   const data=await googleJson(`https://www.googleapis.com/drive/v3/files?${params.toString()}`,accessToken) as {files?:Array<{id:string;name:string;mimeType?:string;shortcutDetails?:{targetId?:string;targetMimeType?:string}}>};
   return selectForgeFolder(data.files||[]).id;
+}
+
+type CreatedDriveFile={id:string;name:string;webViewLink:string};
+
+async function createDriveFile(accessToken:string,metadata:Record<string,unknown>) {
+  const params=new URLSearchParams({fields:"id,name,webViewLink"});
+  return googleJson(`https://www.googleapis.com/drive/v3/files?${params.toString()}`,accessToken,{method:"POST",body:JSON.stringify(metadata)}) as Promise<CreatedDriveFile>;
+}
+
+export async function workoutPlanFolderNameExists(accessToken:string,name:string) {
+  const parentId=await forgeDriveFolderId(accessToken);
+  const query=queryInsideFolder(parentId,`mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  const params=new URLSearchParams({q:query,fields:"files(id,name)",pageSize:"1000"});
+  const data=await googleJson(`https://www.googleapis.com/drive/v3/files?${params.toString()}`,accessToken) as {files?:Array<{id:string;name:string}>};
+  const normalized=name.trim().toLocaleLowerCase("en-US");
+  return (data.files||[]).some(file=>file.name.trim().toLocaleLowerCase("en-US")===normalized);
+}
+
+export async function trashDriveFile(accessToken:string,fileId:string) {
+  await googleJson(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,trashed`,accessToken,{method:"PATCH",body:JSON.stringify({trashed:true})});
+}
+
+function importedSheetFormatting(sheetId:number,day:ImportedWorkoutDay) {
+  const requests:Array<Record<string,unknown>>=[
+    {updateSheetProperties:{properties:{sheetId,gridProperties:{frozenRowCount:3}},fields:"gridProperties.frozenRowCount"}},
+    {repeatCell:{range:{sheetId,startRowIndex:2,endRowIndex:3,startColumnIndex:1,endColumnIndex:9},cell:{userEnteredFormat:{backgroundColorStyle:{rgbColor:{red:.93,green:.93,blue:.93}},textFormat:{bold:true}}},fields:"userEnteredFormat(backgroundColorStyle,textFormat.bold)"}},
+    {updateDimensionProperties:{range:{sheetId,dimension:"COLUMNS",startIndex:1,endIndex:2},properties:{pixelSize:125},fields:"pixelSize"}},
+    {updateDimensionProperties:{range:{sheetId,dimension:"COLUMNS",startIndex:2,endIndex:3},properties:{pixelSize:240},fields:"pixelSize"}},
+    {updateDimensionProperties:{range:{sheetId,dimension:"COLUMNS",startIndex:3,endIndex:5},properties:{pixelSize:190},fields:"pixelSize"}},
+    {updateDimensionProperties:{range:{sheetId,dimension:"COLUMNS",startIndex:5,endIndex:9},properties:{pixelSize:95},fields:"pixelSize"}},
+  ];
+  if (day.warmupVideoUrl) requests.push({repeatCell:{range:{sheetId,startRowIndex:1,endRowIndex:2,startColumnIndex:1,endColumnIndex:2},cell:{userEnteredFormat:{textFormat:{link:{uri:day.warmupVideoUrl}}}},fields:"userEnteredFormat.textFormat.link"}});
+  let rowIndex=3;
+  for (const exercise of day.exercises) {
+    if (exercise.videoUrl) requests.push({repeatCell:{range:{sheetId,startRowIndex:rowIndex,endRowIndex:rowIndex+1,startColumnIndex:2,endColumnIndex:3},cell:{userEnteredFormat:{textFormat:{link:{uri:exercise.videoUrl}}}},fields:"userEnteredFormat.textFormat.link"}});
+    rowIndex+=exercise.sets;
+  }
+  return requests;
+}
+
+async function createImportedDaySheet(accessToken:string,folderId:string,day:ImportedWorkoutDay) {
+  const file=await createDriveFile(accessToken,{name:`Workout ${day.dayName}`,mimeType:"application/vnd.google-apps.spreadsheet",parents:[folderId]});
+  const metadata=await googleJson(`${sheetApi(file.id)}?fields=sheets.properties(sheetId,title)`,accessToken) as {sheets?:Array<{properties?:{sheetId?:number;title?:string}}>};
+  const first=metadata.sheets?.[0]?.properties;
+  if (first?.sheetId===undefined) throw new Error(`Workout ${day.dayName} sheet was not initialized`);
+  await googleJson(`${sheetApi(file.id,":batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({requests:[{updateSheetProperties:{properties:{sheetId:first.sheetId,title:"Week 1"},fields:"title"}}]})});
+  const rows=workoutSheetRows(day);
+  await googleJson(`${sheetApi(file.id,"/values:batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({valueInputOption:"USER_ENTERED",data:[{range:`${quotedSheet("Week 1")}!A1:I${rows.length}`,values:rows}]})});
+  await googleJson(`${sheetApi(file.id,":batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({requests:importedSheetFormatting(first.sheetId,day)})});
+  await parseWeeklyFile(accessToken,{id:file.id,name:file.name,webViewLink:file.webViewLink},day.day,"Week 1");
+  return {...file,day:day.day,dayName:day.dayName};
+}
+
+export async function provisionImportedWorkoutPlan(accessToken:string,plan:ImportedWorkoutPlan,source:File) {
+  const forgeFolderId=await forgeDriveFolderId(accessToken);
+  const folder=await createDriveFile(accessToken,{name:plan.name,mimeType:"application/vnd.google-apps.folder",parents:[forgeFolderId]});
+  try {
+    const sourceParams=new URLSearchParams({uploadType:"multipart",fields:"id,name,webViewLink"});
+    const uploaded=await googleMultipartJson(`https://www.googleapis.com/upload/drive/v3/files?${sourceParams.toString()}`,accessToken,{name:source.name,parents:[folder.id]},source) as CreatedDriveFile;
+    const days=await Promise.all(plan.days.map(day=>createImportedDaySheet(accessToken,folder.id,day)));
+    return {folder,source:uploaded,days};
+  } catch (error) {
+    try { await trashDriveFile(accessToken,folder.id); } catch { /* best-effort rollback */ }
+    throw error;
+  }
 }
 
 async function weightCheckInFile(accessToken:string) {
@@ -253,8 +348,8 @@ function fileForDay(files:WeeklyFile[],day:number) {
   return selectWeeklyFile(files,dayName);
 }
 
-export async function readWeeklyWorkoutCatalog(accessToken:string):Promise<WeeklyCatalogDay[]> {
-  const files = await listWeeklyWorkoutFiles(accessToken);
+export async function readWeeklyWorkoutCatalog(accessToken:string,providedFiles?:WeeklyFile[]):Promise<WeeklyCatalogDay[]> {
+  const files = providedFiles || await listWeeklyWorkoutFiles(accessToken);
   return Promise.all(WEEKDAYS.map(async (dayName,index) => {
     const day=index+1;
     try {
@@ -295,8 +390,8 @@ export async function writeWeeklyWorkoutDate(accessToken:string,spreadsheetId:st
   ]})});
 }
 
-export async function createWeeklyWorkout(accessToken:string,day:number,date:Date) {
-  const files=await listWeeklyWorkoutFiles(accessToken);
+export async function createWeeklyWorkout(accessToken:string,day:number,date:Date,sourceSheetId?:string) {
+  const files=sourceSheetId?[{id:sourceSheetId,name:`Workout ${WEEKDAYS[day-1]}`,webViewLink:`https://docs.google.com/spreadsheets/d/${sourceSheetId}/edit`}]:await listWeeklyWorkoutFiles(accessToken);
   const file=fileForDay(files,day);
   if (!file) throw new Error(`${WEEKDAYS[day-1]} workout sheet was not found`);
   const parsed=await parseWeeklyFile(accessToken,file,day);

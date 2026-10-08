@@ -29,6 +29,13 @@
       "when": 1788895717698,
       "tag": "0003_heavy_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790704014686,
+      "tag": "0004_needy_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

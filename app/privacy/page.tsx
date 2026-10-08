@@ -19,21 +19,21 @@ export default function PrivacyPage() {
       <article className="legal-card">
         <p className="kicker">PRIVACY POLICY</p>
         <h1>Your workout data stays yours.</h1>
-        <p className="legal-updated">Effective September 15, 2026</p>
+        <p className="legal-updated">Effective October 1, 2026</p>
 
         <section>
           <h2>What Forge accesses</h2>
-          <p>When you connect Google, Forge requests your verified Google account email address, permission to view and update Google Sheets, and read-only access to spreadsheet file names and locations in Google Drive. Access to Forge is controlled by the Site’s visitor permissions. Forge uses Drive metadata only to find the top-level Forge folder and its Workout Monday through Workout Sunday files, then reads and updates those workout sheets when you use the seven-day program. The private four-day and six-day programs remain available only to the designated owner account.</p>
+          <p>When you connect Google, Forge requests your verified Google account email address, permission to view and update Google Sheets, read-only access to file names and locations in Google Drive, and permission to manage files Forge creates. Access to Forge is controlled by the Site’s visitor permissions. Forge uses Drive metadata to find the top-level Forge folder and workout sheets, then reads and updates those sheets when you use a program.</p>
         </section>
 
         <section>
           <h2>What Forge stores</h2>
-          <p>Forge stores your Google account email address, an encrypted Google authorization token, a one-way hash identifying this browser or device, the selected workout sheet ID, and workout-session information needed to keep your workout log in sync. The raw device identifier stays in a secure HttpOnly cookie. Forge does not store a copy of your Google Drive file list or your Google password.</p>
+          <p>Forge stores your Google account email address, an encrypted Google authorization token, the granted Google permission list, a one-way hash identifying this browser or device, imported workout names and Google Drive file IDs, and workout-session information needed to keep your workout log in sync. The raw device identifier stays in a secure HttpOnly cookie. Forge does not store your Google password or a copy of your uploaded workout document.</p>
         </section>
 
         <section>
           <h2>How information is used</h2>
-          <p>Your information is used only to provide the workout logging features you request. Forge does not sell your information, use it for advertising, or share it with third parties except service providers required to operate the app or when required by law.</p>
+          <p>Your information is used only to provide the workout logging features you request. When you import a PDF or Word workout plan, Forge sends that document to OpenAI to extract its workout structure, then stores the unchanged source document and generated workout sheets in your Google Drive. Forge does not sell your information, use it for advertising, or share it with third parties except service providers required to operate the app or when required by law.</p>
         </section>
 
         <section>
