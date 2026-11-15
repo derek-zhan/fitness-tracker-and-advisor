@@ -10,6 +10,22 @@ test("finishing from the button serializes the logged set count, not the click e
   assert.doesNotMatch(source, /async function finishWorkout\(totalLogged/);
 });
 
+test("the final-stage finish action stays in the top action stack", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const finalStage = source.match(/stage==="finish"[^\n]+/)?.[0] ?? "";
+
+  assert.match(finalStage, /className="workout-title-actions"[^]*className="finish-button finish-submit-button"/);
+  assert.match(finalStage, /className="finish-button finish-submit-button" onClick=\{finishWorkout\}/);
+  assert.doesNotMatch(finalStage, /className="notes-block"[^]*className="primary-action"/);
+});
+
+test("the local workout preview can reach and finish the review flow without Google", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /if\(previewMode\)\{setSessionId\("local-preview-session"\)[^]*setStage\("warmup"\)[^]*setView\("workout"\)/);
+  assert.match(source, /async function finishWorkout\(\)[^]*if\(previewMode\)\{[^]*setView\("summary"\)/);
+});
+
 test("home offers a labeled daily weight check-in dialog", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 
