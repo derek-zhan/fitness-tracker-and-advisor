@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { attachWeeklyContinuations, foundWeeklyDays, nextWeeklyTab, nextWeeklyWorkoutTab, parseWeeklyWorkout, readRecordedWeeklySets, selectLatestWeek, selectWeeklyFile, weeklyWorkoutDateLabel, workoutDateParts, youtubeEmbedUrl, type SheetCell, type WeeklyCatalogDay } from "../lib/weekly-workout.ts";
 
-const value=(formattedValue:string,hyperlink?:string):SheetCell=>({formattedValue,...(hyperlink?{hyperlink}:{})});
+const value=(formattedValue:string,hyperlink?:string,note?:string):SheetCell=>({formattedValue,...(hyperlink?{hyperlink}:{}),...(note?{note}:{})});
 
 test("parses the verified Week tab structure and write locations",()=>{
   const rows:SheetCell[][]=[
     [value(""),value("Workout")],
     [value(""),value("Warm Up Video","https://youtu.be/VqGVoVn7xjA"),value(""),value(""),value(""),value("September"),value(""),value("5"),value("2026")],
     [value(""),value("Order"),value("Exercise"),value("Quick Cues"),value("Volume"),value("Reps"),value("Load"),value("Comments"),value("Rest")],
-    [value(""),value("A1"),value("Dumbbell Press","https://www.youtube.com/watch?v=VmB1G1K7v94"),value("Control every rep"),value("4 x 8 - 10"),value("10"),value("50"),value(""),value("90s")],
+    [value(""),value("A1"),value("Dumbbell Press","https://www.youtube.com/watch?v=VmB1G1K7v94","Keep the shoulder blades pinned."),value("Control every rep"),value("4 x 8 - 10"),value("10"),value("50"),value(""),value("90s")],
     [value(""),value(""),value(""),value(""),value(""),value("9"),value("50")],
     [],[],[],[],
     [value(""),value("B1"),value("Plank","https://www.youtube.com/shorts/abcDEF_1234"),value("Brace"),value("3 x 30"),value(""),value(""),value(""),value("30s")],
@@ -27,6 +27,7 @@ test("parses the verified Week tab structure and write locations",()=>{
   assert.equal(workout.exercises[0].repRange,"8 - 10");
   assert.equal(workout.exercises[0].load,50);
   assert.equal(workout.exercises[0].rest,90);
+  assert.equal(workout.exercises[0].cue,"Keep the shoulder blades pinned.");
   assert.equal(workout.exercises[0].sheetRow,4);
   assert.equal(workout.exercises[1].unit,"body");
   assert.equal(workout.cardio,"10 min incline walk");
@@ -36,6 +37,20 @@ test("parses the verified Week tab structure and write locations",()=>{
   assert.equal(workout.loadColumn,"G");
   assert.equal(workout.previousDate,"Sep 5, 2026");
   assert.equal(workout.nextWeek,"Week 3");
+});
+
+test("uses the cue column only when the Exercise Name cell has no comment",()=>{
+  const rows:SheetCell[][]=[
+    [],
+    [value(""),value(""),value(""),value(""),value(""),value("September"),value(""),value("5"),value("2026")],
+    [value(""),value("Order"),value("Exercise"),value("Quick Cues"),value("Volume"),value("Reps"),value("Load"),value("Comments"),value("Rest")],
+    [value(""),value("A1"),value("Dumbbell Press"),value("Control every rep"),value("1 x 8 - 10"),value("10"),value("50"),value(""),value("90s")],
+    [value(""),value("Cardio")],
+    [value(""),value("10 min walk")],
+    [value(""),value("Notes / Observations")],
+  ];
+  const workout=parseWeeklyWorkout({day:1,dayName:"Monday",sheetId:"sheet",sheetUrl:"https://example.com",sheetTab:"Week 1",rows});
+  assert.equal(workout.exercises[0].cue,"Control every rep");
 });
 
 test("supports watch, Shorts, youtu.be, and missing YouTube links",()=>{

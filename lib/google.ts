@@ -223,7 +223,7 @@ async function weeklySheetMetadata(accessToken:string,spreadsheetId:string) {
 }
 
 async function readWeeklySheetRows(accessToken:string,spreadsheetId:string,sheetTab:string) {
-  const params = new URLSearchParams({ includeGridData:"true", ranges:`${quotedSheet(sheetTab)}!A1:I250`, fields:"sheets(data(rowData(values(formattedValue,effectiveValue,hyperlink,userEnteredFormat(textFormat(link)),textFormatRuns(format(link))))))" });
+  const params = new URLSearchParams({ includeGridData:"true", ranges:`${quotedSheet(sheetTab)}!A1:I250`, fields:"sheets(data(rowData(values(formattedValue,effectiveValue,note,hyperlink,userEnteredFormat(textFormat(link)),textFormatRuns(format(link))))))" });
   const data = await googleJson(`${sheetApi(spreadsheetId)}?${params.toString()}`,accessToken) as {sheets?:Array<{data?:Array<{rowData?:Array<{values?:SheetCell[]}>}>}>};
   return (data.sheets?.[0]?.data?.[0]?.rowData || []).map(row => row.values || []);
 }
