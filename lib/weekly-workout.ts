@@ -5,6 +5,7 @@ export type WeekdayName = typeof WEEKDAYS[number];
 export type SheetCell = {
   formattedValue?: string;
   effectiveValue?: { stringValue?: string; numberValue?: number };
+  note?: string;
   hyperlink?: string;
   userEnteredFormat?: { textFormat?: { link?: { uri?: string } } };
   textFormatRuns?: Array<{ format?: { link?: { uri?: string } } }>;
@@ -127,6 +128,10 @@ function cellLink(cell?: SheetCell) {
   return cell?.hyperlink || cell?.userEnteredFormat?.textFormat?.link?.uri || cell?.textFormatRuns?.find(run => run.format?.link?.uri)?.format?.link?.uri;
 }
 
+function cellNote(cell?: SheetCell) {
+  return cell?.note?.trim() || "";
+}
+
 function numberFrom(value: string, fallback = 0) {
   const parsed = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -240,7 +245,7 @@ export function parseWeeklyWorkout(args: {
       load: numberFrom(cellText(row[loadColumn])),
       unit,
       rest: Math.max(0, Math.round(numberFrom(cellText(row[restColumn]), unit === "minutes" ? 0 : 60))),
-      cue: cueColumn >= 0 ? cellText(row[cueColumn]) || "Move with control and keep every rep consistent." : "Move with control and keep every rep consistent.",
+      cue: cellNote(row[exerciseColumn]) || (cueColumn >= 0 ? cellText(row[cueColumn]) : "") || "Move with control and keep every rep consistent.",
       bodyLabel: unit === "body" ? "BODYWEIGHT" : undefined,
       videoUrl: validYouTubeUrl(cellLink(row[exerciseColumn])),
       sheetRow: rowIndex + 1,
