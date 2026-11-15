@@ -1,4 +1,5 @@
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+export const MAX_SETS_PER_EXERCISE = 6;
 
 export type WeekdayName = typeof WEEKDAYS[number];
 
@@ -311,10 +312,16 @@ export function readPreviousWeeklySets(workout: WeeklyWorkout, rows: SheetCell[]
 }
 
 export function readRecordedWeeklySets(workout:WeeklyWorkout,rows:SheetCell[][]) {
-  return readPreviousWeeklySets(workout,rows).map(item=>({
-    exercise:workout.exercises[item.exerciseIndex].name,
-    setNumber:item.setNumber,
-    reps:item.reps,
-    load:item.load,
-  }));
+  const recorded:Array<{exercise:string;setNumber:number;reps:number;load:number}>=[];
+  const repsIndex=columnIndex(workout.repsColumn);
+  const loadIndex=columnIndex(workout.loadColumn);
+  for(const exercise of workout.exercises){
+    for(let setNumber=1;setNumber<=MAX_SETS_PER_EXERCISE;setNumber++){
+      const row=rows[exercise.sheetRow+setNumber-2]||[];
+      const reps=numberFrom(cellText(row[repsIndex]),Number.NaN);
+      const load=numberFrom(cellText(row[loadIndex]),Number.NaN);
+      if(Number.isFinite(reps)&&Number.isFinite(load))recorded.push({exercise:exercise.name,setNumber,reps,load});
+    }
+  }
+  return recorded;
 }

@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { googleConnections } from "../db/schema";
-import { nextWeeklyWorkoutTab, parseWeeklyWorkout, readPreviousWeeklySets, selectLatestWeek, selectWeeklyFile, WEEKDAYS, workoutDateParts, type SheetCell, type WeeklyCatalogDay, type WeeklyWorkout } from "./weekly-workout";
+import { MAX_SETS_PER_EXERCISE, nextWeeklyWorkoutTab, parseWeeklyWorkout, readPreviousWeeklySets, selectLatestWeek, selectWeeklyFile, WEEKDAYS, workoutDateParts, type SheetCell, type WeeklyCatalogDay, type WeeklyWorkout } from "./weekly-workout";
 import { hasWeightRecordForDate, selectWeightCheckInFile, WEIGHT_CHECK_IN_SPREADSHEET, WEIGHT_CHECK_IN_TAB } from "./weight-check-in";
 import { answersForRow, buildCheckInRow, CHECK_IN_TAB, checkInQuestions, checkInRowForDate, CheckInAlreadyCompletedError, CheckInSourceError, nextCheckInWeek, previousCheckInDate, validateCheckInAnswers, weightProgress, weekNumber, type CheckInAnswer, type CheckInExperience } from "./check-in";
 import { forgeFolderQuery, queryInsideFolder, selectForgeFolder } from "./google-drive";
@@ -308,7 +308,7 @@ export async function createWeeklyWorkout(accessToken:string,day:number,date:Dat
   if (!reuseBlankWeekOne) await googleJson(`${sheetApi(file.id,":batchUpdate")}`,accessToken,{method:"POST",body:JSON.stringify({requests:[{duplicateSheet:{sourceSheetId:current.sheetId,insertSheetIndex:current.index+1,newSheetName:title}}]})});
   await writeWeeklyWorkoutDate(accessToken,file.id,title,date);
   const previousSets=reuseBlankWeekOne?[]:readPreviousWeeklySets(parsed.workout,parsed.rows);
-  const ranges=parsed.workout.exercises.map(exercise => `${quotedSheet(title)}!${parsed.workout.repsColumn}${exercise.sheetRow}:${parsed.workout.commentsColumn}${exercise.sheetRow+exercise.sets-1}`);
+  const ranges=parsed.workout.exercises.map(exercise => `${quotedSheet(title)}!${parsed.workout.repsColumn}${exercise.sheetRow}:${parsed.workout.commentsColumn}${exercise.sheetRow+MAX_SETS_PER_EXERCISE-1}`);
   ranges.push(`${quotedSheet(title)}!${parsed.workout.cardioStatusCell}`,`${quotedSheet(title)}!${parsed.workout.notesCell}`);
   await googleJson(`${sheetApi(file.id,"/values:batchClear")}`,accessToken,{method:"POST",body:JSON.stringify({ranges})});
   const created=await parseWeeklyFile(accessToken,file,day,title);
@@ -318,7 +318,7 @@ export async function createWeeklyWorkout(accessToken:string,day:number,date:Dat
 export async function writeWeeklyWorkoutSet(accessToken:string,workout:WeeklyWorkout,exerciseOrder:string,exerciseName:string,setNumber:number,reps:number,load:number) {
   const source=await resumeWeeklyWorkout(accessToken,workout.sheetId,workout.sheetTab,workout.day);
   const exercise=source.workout.exercises.find(item => item.order===exerciseOrder && item.name===exerciseName);
-  if (!exercise || setNumber<1 || setNumber>exercise.sets) throw new Error("Exercise set was not found in the workout sheet");
+  if (!exercise || setNumber<1 || setNumber>MAX_SETS_PER_EXERCISE) throw new Error("Exercise set was not found in the workout sheet");
   const row=exercise.sheetRow+setNumber-1;
   const range=encodeURIComponent(`${quotedSheet(workout.sheetTab)}!${source.workout.repsColumn}${row}:${source.workout.loadColumn}${row}`);
   await googleJson(`${sheetApi(workout.sheetId,`/values/${range}`)}?valueInputOption=USER_ENTERED`,accessToken,{method:"PUT",body:JSON.stringify({values:[[reps,load]]})});

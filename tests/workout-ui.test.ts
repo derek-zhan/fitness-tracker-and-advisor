@@ -26,6 +26,16 @@ test("the local workout preview can reach and finish the review flow without Goo
   assert.match(source, /async function finishWorkout\(\)[^]*if\(previewMode\)\{[^]*setView\("summary"\)/);
 });
 
+test("an active workout can add and restore extra rounds up to six sets", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const route = await readFile(new URL("../app/api/workouts/route.ts", import.meta.url), "utf8");
+
+  assert.match(source, /className="add-round"[^>]*>\+<\/button>/);
+  assert.match(source, /visibleSetCount<MAX_SETS_PER_EXERCISE/);
+  assert.match(source, /matchingDraft\.setNumber<=MAX_SETS_PER_EXERCISE/);
+  assert.match(route, /payload\.setNumber > MAX_SETS_PER_EXERCISE/);
+});
+
 test("home offers a labeled daily weight check-in dialog", async () => {
   const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
 
