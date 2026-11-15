@@ -4,7 +4,7 @@ import { workoutSessions, workoutSets } from "../../../db/schema";
 import { allowedConnectionForRequest } from "../../../lib/device-auth";
 import { accessTokenForDevice, createWeeklyWorkout, createWorkoutWeek, ensureWorkoutLogSheet, finishWeeklyWorkout, GoogleReauthorizationRequiredError, readPreviousWeeklyWorkoutSets, readPreviousWeekWorkoutSets, readWeeklyWorkoutCatalog, resumeWeeklyWorkout, sheetTabExists, upsertWorkoutSetLog, writeWeeklyWorkoutDate, writeWeeklyWorkoutSet, writeWorkoutSet } from "../../../lib/google";
 import { isOwnerGoogleEmail, ownerWorkoutFor } from "../../../lib/owner-workouts";
-import { readRecordedWeeklySets } from "../../../lib/weekly-workout";
+import { MAX_SETS_PER_EXERCISE, readRecordedWeeklySets } from "../../../lib/weekly-workout";
 
 type Payload = {
   action?: "start" | "set" | "finish";
@@ -77,6 +77,7 @@ export async function POST(request: Request) {
     }
     if (payload.action === "set") {
       if (!payload.sessionId || !payload.day || !payload.exercise || !payload.setNumber || payload.exerciseIndex === undefined) return Response.json({ error:"Missing set details" }, { status:400 });
+      if (payload.setNumber > MAX_SETS_PER_EXERCISE) return Response.json({ error:`A maximum of ${MAX_SETS_PER_EXERCISE} sets can be saved per exercise` }, { status:400 });
       const [session] = await db.select().from(workoutSessions).where(eq(workoutSessions.id,payload.sessionId)).limit(1);
       if (!session || session.deviceIdHash !== identity.deviceIdHash || !session.sheetTab) return Response.json({ error:"Workout session was not found" }, { status:404 });
       if(session.workoutDay<=200&&!isOwnerGoogleEmail(identity.connection?.email))return Response.json({error:"This personal program is not available for this account"},{status:403});

@@ -109,6 +109,26 @@ test("loads sets already recorded in the active weekly sheet",()=>{
   ]);
 });
 
+test("loads optional extra sets through the six-set sheet capacity",()=>{
+  const rows:SheetCell[][]=[
+    [],
+    [value(""),value(""),value(""),value(""),value(""),value("September"),value(""),value("5"),value("2026")],
+    [value(""),value("Order"),value("Exercise"),value("Quick Cues"),value("Volume"),value("Reps"),value("Load"),value("Comments"),value("Rest")],
+    [value(""),value("A1"),value("Dumbbell Press"),value("Control"),value("4 x 8 - 10"),value("10"),value("50"),value(""),value("90s")],
+    [],[],[],
+    [value(""),value(""),value(""),value(""),value(""),value("8"),value("45")],
+    [value(""),value(""),value(""),value(""),value(""),value("7"),value("45")],
+    [value(""),value("Cardio")],
+    [value(""),value("10 min walk")],
+    [value(""),value("Notes / Observations")],
+  ];
+  const workout=parseWeeklyWorkout({day:1,dayName:"Monday",sheetId:"sheet",sheetUrl:"https://example.com",sheetTab:"Week 1",rows});
+  assert.deepEqual(readRecordedWeeklySets(workout,rows).slice(-2),[
+    {exercise:"Dumbbell Press",setNumber:5,reps:8,load:45},
+    {exercise:"Dumbbell Press",setNumber:6,reps:7,load:45},
+  ]);
+});
+
 test("shows only weekly sheets that were found and parsed",()=>{
   const days=foundWeeklyDays([
     {day:1,available:true,workout:{sheetTab:"Week 2"}},
