@@ -55,6 +55,6 @@ test("home highlights the workout matching the visitor's current weekday", async
   assert.match(source, /function currentWorkoutDay\(now=new Date\(\)\)\{return now\.getDay\(\)\|\|7\}/);
   assert.match(source, /const isToday=currentDay===item\.day/);
   assert.match(source, /isToday\?"current-day":""/);
-  assert.match(source, /isToday\?"TODAY":item\.workout!\.accent/);
+  assert.doesNotMatch(source, /isToday\?"TODAY"/);
   assert.match(styles, /\.program-weekly7 \.day-card\.current-day\{/);
 });

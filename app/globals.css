@@ -165,7 +165,6 @@
 }
 .program-weekly7 .day-card.current-day:hover{border-color:#ff7777;background:linear-gradient(105deg,rgba(125,28,28,.78),rgba(35,16,16,.96) 58%)}
 .program-weekly7 .day-card.current-day .day-card-number{color:#ff7777}
-.program-weekly7 .day-card.current-day .today-label{display:inline-block;width:max-content;padding:4px 7px;color:#160909;background:var(--acid);border-radius:999px;font-style:normal;font-weight:900;letter-spacing:.12em}
 .start-actions{display:flex;align-items:stretch;gap:9px}.continue-action{min-width:170px;padding:14px 17px;color:#fff0f0;background:#281616;border:1px solid #853535;border-radius:11px;font-weight:800}.continue-action:hover{background:#3a1b1b;border-color:var(--acid)}.continue-action:disabled{cursor:wait;opacity:.65}
 
 @media(max-width:760px){
