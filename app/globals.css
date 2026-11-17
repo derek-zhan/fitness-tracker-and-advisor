@@ -158,6 +158,13 @@
 .program-weekly7 .day-card-meta{gap:10px}
 .program-weekly7 .day-card-meta{flex-direction:column;align-items:flex-end}
 .program-weekly7 .day-card.active{box-shadow:inset 4px 0 var(--acid)}
+.program-weekly7 .day-card.current-day{
+  border-color:#ff5a5a;
+  background:linear-gradient(105deg,rgba(105,24,24,.72),rgba(29,15,15,.94) 58%);
+  box-shadow:inset 4px 0 var(--acid),0 0 0 1px rgba(255,47,47,.18),0 12px 34px rgba(116,10,10,.2);
+}
+.program-weekly7 .day-card.current-day:hover{border-color:#ff7777;background:linear-gradient(105deg,rgba(125,28,28,.78),rgba(35,16,16,.96) 58%)}
+.program-weekly7 .day-card.current-day .day-card-number{color:#ff7777}
 .start-actions{display:flex;align-items:stretch;gap:9px}.continue-action{min-width:170px;padding:14px 17px;color:#fff0f0;background:#281616;border:1px solid #853535;border-radius:11px;font-weight:800}.continue-action:hover{background:#3a1b1b;border-color:var(--acid)}.continue-action:disabled{cursor:wait;opacity:.65}
 
 @media(max-width:760px){

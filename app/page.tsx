@@ -46,6 +46,7 @@ const localCheckInPreview:CheckInData={
 };
 
 function weekLabel(){const now=new Date();const monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);return `${monday.toLocaleDateString("en-CA",{month:"short",day:"numeric"})} – ${sunday.toLocaleDateString("en-CA",{month:"short",day:"numeric"})}`}
+function currentWorkoutDay(now=new Date()){return now.getDay()||7}
 function workoutDayLabel(workout:Workout){return workout.dayName||`Day ${workout.day}`}
 function formatTime(seconds:number){return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,"0")}`}
 function uniqueSetLogs(items:SetLog[]){const unique=new Map<string,SetLog>();for(const item of items)unique.set(`${item.exercise}:${item.set}`,item);return [...unique.values()]}
@@ -86,6 +87,7 @@ export default function Home(){
   const [weightValue,setWeightValue]=useState("");
   const [weightError,setWeightError]=useState("");
   const [previewMode,setPreviewMode]=useState(false);
+  const [currentDay,setCurrentDay]=useState<number|null>(null);
   const [checkInState,setCheckInState]=useState<"idle"|"loading"|"ready"|"saving"|"error">("idle");
   const [checkInData,setCheckInData]=useState<CheckInData|null>(null);
   const [checkInStage,setCheckInStage]=useState<CheckInStage>("landing");
@@ -114,6 +116,7 @@ export default function Home(){
   const visibleSetCount=exercise?Math.min(MAX_SETS_PER_EXERCISE,Math.max(exercise.sets,setNumber,...logs.filter(item=>item.exercise===exercise.name).map(item=>item.set))):0;
 
   useEffect(()=>{if(!resting)return;const updateRest=()=>{const remaining=Math.max(0,Math.ceil((restEndsAt.current-Date.now())/1000));setRestLeft(remaining);if(remaining===0){setResting(false);if(!restAlerted.current){restAlerted.current=true;window.alert("Rest complete — time for your next set.")}}};updateRest();timer.current=setInterval(updateRest,1000);document.addEventListener("visibilitychange",updateRest);window.addEventListener("focus",updateRest);window.addEventListener("pageshow",updateRest);return()=>{if(timer.current)clearInterval(timer.current);timer.current=null;document.removeEventListener("visibilitychange",updateRest);window.removeEventListener("focus",updateRest);window.removeEventListener("pageshow",updateRest)}},[resting]);
+  useEffect(()=>{const refreshCurrentDay=()=>setCurrentDay(currentWorkoutDay());refreshCurrentDay();window.addEventListener("focus",refreshCurrentDay);window.addEventListener("pageshow",refreshCurrentDay);return()=>{window.removeEventListener("focus",refreshCurrentDay);window.removeEventListener("pageshow",refreshCurrentDay)}},[]);
   useEffect(()=>{if(view!=="workout"||!sessionId)return;localStorage.setItem(workoutDraftKey,JSON.stringify({sessionId,programId,selectedDay,exerciseIndex,setNumber,reps,load,logs,previousSets,startedAt,stage,cardioCompleted,notes} satisfies WorkoutDraft))},[view,sessionId,programId,selectedDay,exerciseIndex,setNumber,reps,load,logs,previousSets,startedAt,stage,cardioCompleted,notes]);
 
   async function refreshConnection(loadAfter=false){
@@ -234,7 +237,7 @@ export default function Home(){
       {googleEmail&&<div className="google-status"><span className="green-dot"/><b>{googleEmail}</b><small>Connected on this device</small><button type="button" onClick={disconnect}>Disconnect</button></div>}
       {notice&&<div className="notice" role="alert">{notice}</div>}
       {authState!=="connected"?<div className="connect-card"><span className="analysis-tag">GOOGLE SHEETS</span><h2>{authState==="reauthorization_required"?"Reconnect this device":"Connect this device"}</h2><p>Sign in with Google to load and update your workout sheets. Each browser connects separately.</p><a className="primary-action" href="/api/google/authorize?day=1">Connect Google <span>→</span></a></div>:<>
-        <div className="day-grid" role="list" aria-label="Choose a workout day">{visibleWeeklyDays.map(item=><button key={item.dayName} role="listitem" className={`day-card ${selectedDay===item.day?"active":""}`} onClick={()=>setSelectedDay(item.day)}><span className="day-card-top"><b>{item.dayName}</b><i>{item.workout!.accent}</i></span><span className="day-card-number">{String(item.day).padStart(2,"0")}</span><span className="day-card-type">{item.workout!.type}</span><span className="day-card-focus">{item.workout!.focus}</span><span className="day-card-meta"><b>{item.workout!.nextWeek?`Next: ${item.workout!.nextWeek}`:`${item.workout!.exercises.length} exercises`}</b><small>{item.workout!.previousDate?`Last: ${item.workout!.previousDate}`:"No previous date"}</small></span></button>)}</div>
+        <div className="day-grid" role="list" aria-label="Choose a workout day">{visibleWeeklyDays.map(item=>{const isToday=currentDay===item.day;return <button key={item.dayName} role="listitem" aria-label={`${item.dayName} workout${isToday?", today":""}`} className={`day-card ${selectedDay===item.day?"active":""} ${isToday?"current-day":""}`} onClick={()=>setSelectedDay(item.day)}><span className="day-card-top"><b>{item.dayName}</b><i>{item.workout!.accent}</i></span><span className="day-card-number">{String(item.day).padStart(2,"0")}</span><span className="day-card-type">{item.workout!.type}</span><span className="day-card-focus">{item.workout!.focus}</span><span className="day-card-meta"><b>{item.workout!.nextWeek?`Next: ${item.workout!.nextWeek}`:`${item.workout!.exercises.length} exercises`}</b><small>{item.workout!.previousDate?`Last: ${item.workout!.previousDate}`:"No previous date"}</small></span></button>})}</div>
         <div className="start-dock"><div><span>READY FOR</span><b>{selectedWeeklyDay?.workout?`${selectedWeeklyDay.dayName} · ${selectedWeeklyDay.workout.type}`:weeklyState==="loading"?"Loading your sheets…":"No workout sheets found"}</b></div><div className="start-actions">{selectedWeeklyDay?.continueWeek&&<button className="continue-action" onClick={()=>startWorkoutForDay(selectedDay,"continue")} disabled={syncState==="saving"}>Continue {selectedWeeklyDay.continueWeek}</button>}<button className="primary-action" onClick={()=>startWorkoutForDay(selectedDay)} disabled={syncState==="saving"||!workout||!selectedWeeklyDay?.available||weeklyState==="loading"}>{weeklyState==="loading"?"Loading sheets…":syncState==="saving"?"Starting…":"Start workout"} <span>→</span></button></div></div>
       </>}
       <div className="source-note"><span className="green-dot"/> Workout Monday through Workout Sunday · a fresh Week tab is created for every session</div>
