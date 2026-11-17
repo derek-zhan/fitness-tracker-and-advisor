@@ -47,3 +47,14 @@ test("home offers a labeled daily weight check-in dialog", async () => {
   assert.match(source, /type="number" inputMode="decimal" min="0\.1" step="0\.1"/);
   assert.match(source, /fetch\("\/api\/weight-check-in"/);
 });
+
+test("home highlights the workout matching the visitor's current weekday", async () => {
+  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(source, /function currentWorkoutDay\(now=new Date\(\)\)\{return now\.getDay\(\)\|\|7\}/);
+  assert.match(source, /const isToday=currentDay===item\.day/);
+  assert.match(source, /isToday\?"current-day":""/);
+  assert.match(source, /isToday\?"TODAY":item\.workout!\.accent/);
+  assert.match(styles, /\.program-weekly7 \.day-card\.current-day\{/);
+});
